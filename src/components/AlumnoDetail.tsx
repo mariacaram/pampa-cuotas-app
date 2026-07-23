@@ -33,6 +33,12 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
           <Stat label="Plan de cuotas" value={String(alumno.plan_cuotas)} />
           <Stat label="Cuotas pagadas" value={String(alumno.cuotasPagadas)} />
           <Stat label="Cuotas pendientes" value={String(alumno.cuotasPendientes)} highlight />
+          <div>
+            <p className="text-xs text-neutral-500">Cuotas atrasadas</p>
+            <p className={`text-sm font-bold ${alumno.cuotasAtrasadas > 0 ? "text-red-600" : "text-neutral-700"}`}>
+              {alumno.cuotasAtrasadas}
+            </p>
+          </div>
           <Stat
             label="Próx. vencimiento"
             value={alumno.proximoVencimiento ? formatDate(alumno.proximoVencimiento) : "—"}
@@ -62,7 +68,12 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
         </div>
       </Card>
 
-      <PagoForm alumnoId={alumno.alumno_id} montoCuota={alumno.montoCuota} onRegistrado={onRegistrado} />
+      <PagoForm
+        alumnoId={alumno.alumno_id}
+        montoCuota={alumno.montoCuota}
+        cuotasRestantes={alumno.cuotasPendientes}
+        onRegistrado={onRegistrado}
+      />
 
       <div>
         <p className="mb-2 text-sm font-semibold text-neutral-800">

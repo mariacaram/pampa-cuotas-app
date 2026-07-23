@@ -7,10 +7,12 @@ import { NuevoPago } from "@/lib/types";
 type Props = {
   alumnoId: string;
   montoCuota: number;
+  cuotasRestantes: number;
   onRegistrado: () => void;
 };
 
-export default function PagoForm({ alumnoId, montoCuota, onRegistrado }: Props) {
+export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegistrado }: Props) {
+  const [cantidadCuotas, setCantidadCuotas] = useState(1);
   const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [formaDePago, setFormaDePago] = useState(FORMAS_DE_PAGO[0]);
@@ -23,9 +25,16 @@ export default function PagoForm({ alumnoId, montoCuota, onRegistrado }: Props) 
   const [error, setError] = useState<string | null>(null);
 
   const pct = Number(interesPct) || 0;
-  const interesMonto = atrasado ? Math.round(montoCuota * (pct / 100)) : 0;
-  const totalReferencia = Math.round(montoCuota + interesMonto);
+  const baseCuotas = Math.round(cantidadCuotas * montoCuota);
+  const interesMonto = atrasado ? Math.round(baseCuotas * (pct / 100)) : 0;
+  const totalReferencia = baseCuotas + interesMonto;
   const bonif = conBonificacion ? Number(bonificacion) || 0 : 0;
+  const maxCuotas = Math.max(1, cuotasRestantes || 1);
+
+  function elegirCuotas(n: number) {
+    setCantidadCuotas(n);
+    setMonto(String(Math.round(n * montoCuota)));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,6 +66,7 @@ export default function PagoForm({ alumnoId, montoCuota, onRegistrado }: Props) 
         throw new Error(data.error || "No se pudo registrar el pago");
       }
       setMonto("");
+      setCantidadCuotas(1);
       setInteresPct("");
       setBonificacion("");
       setNota("");
@@ -76,6 +86,35 @@ export default function PagoForm({ alumnoId, montoCuota, onRegistrado }: Props) 
       className="space-y-3 rounded-2xl border border-neutral-200/70 bg-white p-5 shadow-sm"
     >
       <p className="text-sm font-semibold text-neutral-800">Registrar un pago</p>
+
+      {cuotasRestantes > 0 && montoCuota > 0 && (
+        <div className="rounded-lg bg-emerald-50/60 p-3">
+          <label className="block text-xs text-neutral-500">¿Cuántas cuotas paga?</label>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {Array.from({ length: maxCuotas }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => elegirCuotas(n)}
+                className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                  cantidadCuotas === n
+                    ? "border-emerald-600 bg-emerald-600 text-white"
+                    : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+            <span className="text-xs text-neutral-500">
+              {cantidadCuotas} cuota{cantidadCuotas > 1 ? "s" : ""} × {formatMoney(montoCuota)} ={" "}
+              <span className="font-semibold text-neutral-800">{formatMoney(baseCuotas)}</span>
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-neutral-400">
+            Autocompleta el monto sugerido. Podés editarlo abajo (ej.: una seña de monto distinto).
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
@@ -136,7 +175,9 @@ export default function PagoForm({ alumnoId, montoCuota, onRegistrado }: Props) 
               />
             </div>
             <div className="text-xs text-neutral-600">
-              <p>Cuota: {formatMoney(montoCuota)}</p>
+              <p>
+                {cantidadCuotas} cuota{cantidadCuotas > 1 ? "s" : ""}: {formatMoney(baseCuotas)}
+              </p>
               <p>Interés ({pct}%): {formatMoney(interesMonto)}</p>
               <p className="font-semibold text-emerald-800">
                 Total de referencia: {formatMoney(totalReferencia)}

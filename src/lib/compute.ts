@@ -15,8 +15,14 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
 
   const cuotas = base.plan_cuotas > 0 ? base.plan_cuotas : 1;
   const montoCuota = base.total_asignado > 0 ? round2(base.total_asignado / cuotas) : 0;
+  // Cuotas pagadas = las que ya trae la planilla (cuotas_pagadas_base, que YA cuenta la seña
+  // variable como 1ª cuota) + las cubiertas por los pagos NUEVOS de la app (por monto).
+  // Si el saldo quedó en 0, se considera todo pagado.
+  const cuotasPagadasNuevas = montoCuota > 0 ? Math.floor(sumaPagos / montoCuota) : 0;
   const cuotasPagadas =
-    montoCuota > 0 ? Math.min(cuotas, Math.floor(montoPagadoTotal / montoCuota)) : 0;
+    saldo <= 0
+      ? cuotas
+      : Math.min(cuotas, (base.cuotas_pagadas_base || 0) + cuotasPagadasNuevas);
   const cuotasPendientes = Math.max(0, cuotas - cuotasPagadas);
 
   let situacion: Situacion = "PAGO PARCIAL";
