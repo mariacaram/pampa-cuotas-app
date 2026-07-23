@@ -88,6 +88,8 @@ export async function buildColegioReportBuffer(
   const pagaronTodo = computed.filter((a) => a.situacion === "PAGO TOTAL").length;
   const parcial = computed.filter((a) => a.situacion === "PAGO PARCIAL").length;
   const sinPagos = computed.filter((a) => a.situacion === "SIN PAGOS").length;
+  const atrasados = computed.filter((a) => a.atrasado).length;
+  const montoVencido = computed.reduce((s, a) => s + a.montoVencido, 0);
 
   const resumen = [
     { Concepto: "Colegio", Valor: organizacion },
@@ -96,9 +98,11 @@ export async function buildColegioReportBuffer(
     { Concepto: "Pagaron todo", Valor: pagaronTodo },
     { Concepto: "Pagaron en parte (deben saldo)", Valor: parcial },
     { Concepto: "Sin pagos", Valor: sinPagos },
+    { Concepto: "Atrasados en cuotas (est.)", Valor: atrasados },
     { Concepto: "Total asignado ($)", Valor: Math.round(totalAsignado) },
     { Concepto: "Total cobrado ($)", Valor: Math.round(totalCobrado) },
     { Concepto: "Saldo pendiente total ($)", Valor: Math.round(saldoPendiente) },
+    { Concepto: "Monto vencido estimado ($)", Valor: Math.round(montoVencido) },
     {
       Concepto: "% cobrado",
       Valor: totalAsignado > 0 ? Math.round((totalCobrado / totalAsignado) * 100) + "%" : "—",
@@ -114,6 +118,8 @@ export async function buildColegioReportBuffer(
     "Saldo (falta pagar)": a.saldo,
     "Cuotas pagadas": a.cuotasPagadas,
     "Cuotas pendientes": a.cuotasPendientes,
+    "Cuotas atrasadas (est.)": a.cuotasAtrasadas,
+    Atrasado: a.atrasado ? "SÍ" : "",
     Situación: a.situacion,
   }));
 
@@ -127,7 +133,8 @@ export async function buildColegioReportBuffer(
   );
   wsDetalle["!cols"] = [
     { wch: 28 }, { wch: 26 }, { wch: 11 }, { wch: 14 },
-    { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 14 },
+    { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
+    { wch: 18 }, { wch: 10 }, { wch: 14 },
   ];
   XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle alumnos");
 

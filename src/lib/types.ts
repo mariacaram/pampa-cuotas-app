@@ -51,6 +51,11 @@ export type AlumnoComputed = AlumnoBase & {
   cuotasPagadas: number;
   cuotasPendientes: number;
   situacion: Situacion;
+  // Atraso estimado (1 cuota/mes desde fecha_orden).
+  cuotasEsperadas: number;
+  cuotasAtrasadas: number;
+  atrasado: boolean;
+  montoVencido: number;
 };
 
 export type Colegio = {

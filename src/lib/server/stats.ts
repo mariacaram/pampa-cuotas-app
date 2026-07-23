@@ -38,6 +38,108 @@ export async function getAlumnosComputed(organizacion?: string): Promise<AlumnoC
   return filtered.map((a) => computeAlumno(a, pagosPorAlumno.get(a.alumno_id) ?? []));
 }
 
+export type PendienteColegio = {
+  organizacion: string;
+  alumnosPendientes: number;
+  alumnosAtrasados: number;
+  totalPendiente: number;
+  montoVencido: number;
+};
+
+export type PendienteAlumno = {
+  alumno_id: string;
+  alumno: string;
+  saldo: number;
+  cuotasPagadas: number;
+  cuotasEsperadas: number;
+  cuotasAtrasadas: number;
+  atrasado: boolean;
+  situacion: string;
+};
+
+export type Pendiente = {
+  scope: string;
+  totalPendiente: number;
+  alumnosPendientes: number;
+  alumnosAtrasados: number;
+  montoVencido: number;
+  porColegio: PendienteColegio[];
+  alumnos: PendienteAlumno[]; // solo cuando se filtra por un colegio
+};
+
+export async function getPendiente(organizacion?: string): Promise<Pendiente> {
+  const computed = await getAlumnosComputed(organizacion);
+
+  let totalPendiente = 0;
+  let alumnosPendientes = 0;
+  let alumnosAtrasados = 0;
+  let montoVencido = 0;
+  const porColegioMap = new Map<string, PendienteColegio>();
+
+  for (const a of computed) {
+    if (a.saldo <= 0) continue;
+    totalPendiente += a.saldo;
+    alumnosPendientes += 1;
+    montoVencido += a.montoVencido;
+    if (a.atrasado) alumnosAtrasados += 1;
+
+    const c =
+      porColegioMap.get(a.organizacion) ??
+      {
+        organizacion: a.organizacion,
+        alumnosPendientes: 0,
+        alumnosAtrasados: 0,
+        totalPendiente: 0,
+        montoVencido: 0,
+      };
+    c.alumnosPendientes += 1;
+    c.totalPendiente += a.saldo;
+    c.montoVencido += a.montoVencido;
+    if (a.atrasado) c.alumnosAtrasados += 1;
+    porColegioMap.set(a.organizacion, c);
+  }
+
+  const porColegio = [...porColegioMap.values()]
+    .map((c) => ({
+      ...c,
+      totalPendiente: round2(c.totalPendiente),
+      montoVencido: round2(c.montoVencido),
+    }))
+    .sort((a, b) => b.totalPendiente - a.totalPendiente);
+
+  // Lista detallada solo cuando se pidió un colegio puntual (para no mandar miles de filas).
+  const alumnos: PendienteAlumno[] = organizacion
+    ? computed
+        .filter((a) => a.saldo > 0)
+        .sort(
+          (a, b) =>
+            Number(b.atrasado) - Number(a.atrasado) ||
+            b.cuotasAtrasadas - a.cuotasAtrasadas ||
+            b.saldo - a.saldo
+        )
+        .map((a) => ({
+          alumno_id: a.alumno_id,
+          alumno: a.alumno,
+          saldo: a.saldo,
+          cuotasPagadas: a.cuotasPagadas,
+          cuotasEsperadas: a.cuotasEsperadas,
+          cuotasAtrasadas: a.cuotasAtrasadas,
+          atrasado: a.atrasado,
+          situacion: a.situacion,
+        }))
+    : [];
+
+  return {
+    scope: organizacion || "Todos los colegios",
+    totalPendiente: round2(totalPendiente),
+    alumnosPendientes,
+    alumnosAtrasados,
+    montoVencido: round2(montoVencido),
+    porColegio,
+    alumnos,
+  };
+}
+
 export async function getStats(organizacion?: string): Promise<Stats> {
   const computed = await getAlumnosComputed(organizacion);
 

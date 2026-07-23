@@ -1,6 +1,6 @@
 "use client";
 
-export type View = "tablero" | "cuotas";
+export type View = "tablero" | "pendiente" | "cuotas";
 
 const ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   {
@@ -12,6 +12,16 @@ const ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
         <rect x="14" y="3" width="7" height="5" rx="1.5" />
         <rect x="14" y="12" width="7" height="9" rx="1.5" />
         <rect x="3" y="16" width="7" height="5" rx="1.5" />
+      </svg>
+    ),
+  },
+  {
+    key: "pendiente",
+    label: "Pendiente de cobro",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
       </svg>
     ),
   },
@@ -36,13 +46,19 @@ export default function Sidebar({
 }) {
   return (
     <aside className="sticky top-0 flex h-screen w-16 flex-col border-r border-neutral-200/70 bg-white px-2 py-6 sm:w-60 sm:px-4">
-      <div className="mb-8 flex items-center gap-2 px-1 sm:px-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white">
-          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="2">
-            <path d="M12 3l7 4v6c0 4-3 6-7 8-4-2-7-4-7-8V7l7-4z" />
-          </svg>
-        </div>
-        <span className="hidden text-lg font-extrabold text-neutral-900 sm:block">Pampa</span>
+      <div className="mb-8 px-1 sm:px-2">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.jpg"
+          alt="Pampa"
+          className="hidden h-16 w-full rounded-xl object-cover sm:block"
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.jpg"
+          alt="Pampa"
+          className="mx-auto block h-10 w-10 rounded-lg object-cover sm:hidden"
+        />
       </div>
 
       <nav className="space-y-1">

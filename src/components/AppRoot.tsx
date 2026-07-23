@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Colegio } from "@/lib/types";
 import Sidebar, { View } from "./Sidebar";
 import TableroView from "./TableroView";
+import PendienteView from "./PendienteView";
 import CuotasView from "./CuotasView";
 
 export default function AppRoot() {
@@ -55,6 +56,8 @@ export default function AppRoot() {
             <p className="text-sm text-neutral-400">Cargando…</p>
           ) : view === "tablero" ? (
             <TableroView colegios={colegios} />
+          ) : view === "pendiente" ? (
+            <PendienteView colegios={colegios} />
           ) : (
             <CuotasView colegios={colegios} />
           )}
