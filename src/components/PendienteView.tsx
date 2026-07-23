@@ -101,14 +101,18 @@ export default function PendienteView({ colegios }: { colegios: Colegio[] }) {
               </option>
             ))}
           </select>
-          {colegio && (
-            <a
-              href={`/api/export?organizacion=${encodeURIComponent(colegio)}`}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-            >
-              ⬇ Reporte del colegio
-            </a>
-          )}
+          <a
+            href={`/api/pendiente/export?format=xlsx${colegio ? `&organizacion=${encodeURIComponent(colegio)}` : ""}`}
+            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            ⬇ Excel
+          </a>
+          <a
+            href={`/api/pendiente/export?format=pdf${colegio ? `&organizacion=${encodeURIComponent(colegio)}` : ""}`}
+            className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+          >
+            ⬇ PDF
+          </a>
         </div>
       </div>
 
