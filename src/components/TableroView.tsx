@@ -1,0 +1,181 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Colegio } from "@/lib/types";
+import { formatMoney } from "@/lib/format";
+import { Card, StatCard } from "./ui";
+import Donut from "./charts/Donut";
+import BarList from "./charts/BarList";
+
+type Stats = {
+  scope: string;
+  totalAlumnos: number;
+  totalAsignado: number;
+  totalCobrado: number;
+  saldoPendiente: number;
+  pctCobrado: number;
+  situacion: { PAGO_TOTAL: number; PAGO_PARCIAL: number; SIN_PAGOS: number };
+  topColegiosPorSaldo: { organizacion: string; saldo: number; alumnos: number }[];
+  formasDePago: { forma: string; cantidad: number }[];
+};
+
+export default function TableroView({ colegios }: { colegios: Colegio[] }) {
+  const [filtro, setFiltro] = useState("");
+  const [colegio, setColegio] = useState("");
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
+    (async () => {
+      try {
+        const url = colegio
+          ? `/api/stats?organizacion=${encodeURIComponent(colegio)}`
+          : "/api/stats";
+        const res = await fetch(url);
+        const data = await res.json();
+        if (cancel) return;
+        if (!res.ok) throw new Error(data.error || "Error cargando estadísticas");
+        setStats(data.stats);
+      } catch (e) {
+        if (!cancel) setError(String(e instanceof Error ? e.message : e));
+      } finally {
+        if (!cancel) setLoading(false);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [colegio]);
+
+  const colegiosFiltrados = useMemo(() => {
+    const q = filtro.trim().toLocaleLowerCase("es");
+    if (!q) return colegios;
+    return colegios.filter((c) => c.organizacion.toLocaleLowerCase("es").includes(q));
+  }, [colegios, filtro]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-neutral-900">Tablero de datos</h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            Resumen de cobranzas {stats ? `· ${stats.scope}` : ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="block text-xs text-neutral-500">Filtrar por colegio</label>
+            <input
+              value={filtro}
+              onChange={(e) => setFiltro(e.target.value)}
+              placeholder="Buscar…"
+              className="mt-1 w-44 rounded-lg border border-neutral-300 p-2 text-sm"
+            />
+          </div>
+          <select
+            value={colegio}
+            onChange={(e) => setColegio(e.target.value)}
+            className="rounded-lg border border-neutral-300 p-2 text-sm"
+          >
+            <option value="">Todos los colegios ({colegios.length})</option>
+            {colegiosFiltrados.map((c) => (
+              <option key={c.organizacion} value={c.organizacion}>
+                {c.organizacion} ({c.cantidadAlumnos})
+              </option>
+            ))}
+          </select>
+          {colegio && (
+            <a
+              href={`/api/export?organizacion=${encodeURIComponent(colegio)}`}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              ⬇ Reporte del colegio
+            </a>
+          )}
+        </div>
+      </div>
+
+      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+      {loading && !stats ? (
+        <p className="text-sm text-neutral-400">Cargando estadísticas…</p>
+      ) : stats ? (
+        <>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard label="Alumnos" value={stats.totalAlumnos.toLocaleString("es-AR")} />
+            <StatCard label="Total asignado" value={formatMoney(stats.totalAsignado)} />
+            <StatCard
+              label="Cobrado"
+              value={formatMoney(stats.totalCobrado)}
+              sub={`${stats.pctCobrado}% del total`}
+              accent
+            />
+            <StatCard label="Saldo pendiente" value={formatMoney(stats.saldoPendiente)} />
+          </div>
+
+          {/* Barra de progreso de cobranza */}
+          <Card>
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="font-semibold text-neutral-800">Cobrado vs pendiente</span>
+              <span className="text-neutral-500">{stats.pctCobrado}% cobrado</span>
+            </div>
+            <div className="flex h-4 w-full overflow-hidden rounded-full bg-neutral-100">
+              <div
+                className="h-full bg-emerald-500"
+                style={{ width: `${stats.pctCobrado}%` }}
+              />
+            </div>
+            <div className="mt-2 flex justify-between text-xs text-neutral-500">
+              <span>Cobrado: {formatMoney(stats.totalCobrado)}</span>
+              <span>Pendiente: {formatMoney(stats.saldoPendiente)}</span>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card>
+              <p className="mb-4 font-semibold text-neutral-800">Estado de pagos</p>
+              <Donut
+                centerValue={String(stats.totalAlumnos)}
+                centerLabel="alumnos"
+                segments={[
+                  { label: "Pagó todo", value: stats.situacion.PAGO_TOTAL, color: "#16a36a" },
+                  { label: "Pago parcial", value: stats.situacion.PAGO_PARCIAL, color: "#f59e0b" },
+                  { label: "Sin pagos", value: stats.situacion.SIN_PAGOS, color: "#cbd5cb" },
+                ]}
+              />
+            </Card>
+
+            <Card>
+              <p className="mb-4 font-semibold text-neutral-800">Formas de pago</p>
+              <BarList
+                items={stats.formasDePago.map((f) => ({ label: f.forma, value: f.cantidad }))}
+                barClass="bg-emerald-400"
+              />
+            </Card>
+          </div>
+
+          {stats.topColegiosPorSaldo.length > 0 && (
+            <Card>
+              <p className="mb-4 font-semibold text-neutral-800">
+                {colegio ? "Saldo pendiente del colegio" : "Colegios que más deben"}
+              </p>
+              <BarList
+                items={stats.topColegiosPorSaldo.map((c) => ({
+                  label: c.organizacion,
+                  value: c.saldo,
+                  hint: `· ${c.alumnos} al.`,
+                }))}
+                formatValue={formatMoney}
+                barClass="bg-emerald-600"
+              />
+            </Card>
+          )}
+        </>
+      ) : null}
+    </div>
+  );
+}

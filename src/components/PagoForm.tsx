@@ -59,8 +59,11 @@ export default function PagoForm({ alumnoId, onRegistrado }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 rounded-xl border border-neutral-200 p-4">
-      <p className="text-sm font-medium text-neutral-800">Registrar un pago</p>
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-3 rounded-2xl border border-neutral-200/70 bg-white p-5 shadow-sm"
+    >
+      <p className="text-sm font-semibold text-neutral-800">Registrar un pago</p>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
@@ -140,7 +143,7 @@ export default function PagoForm({ alumnoId, onRegistrado }: Props) {
       <button
         type="submit"
         disabled={saving}
-        className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
       >
         {saving ? "Guardando…" : "Registrar pago"}
       </button>

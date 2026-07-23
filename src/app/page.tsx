@@ -1,5 +1,5 @@
-import PampaApp from "@/components/PampaApp";
+import AppRoot from "@/components/AppRoot";
 
 export default function Home() {
-  return <PampaApp />;
+  return <AppRoot />;
 }
