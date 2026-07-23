@@ -10,6 +10,8 @@ export interface Repo {
   getAlumnoBase(alumnoId: string): Promise<AlumnoBase | null>;
   listPagos(alumnoId: string): Promise<Pago[]>;
   addPago(pago: NuevoPago): Promise<Pago>;
+  listAllAlumnos(): Promise<AlumnoBase[]>;
+  listAllPagos(): Promise<Pago[]>;
   source: "supabase" | "local";
 }
 

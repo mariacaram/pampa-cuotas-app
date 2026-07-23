@@ -67,6 +67,14 @@ export class LocalFileRepo implements Repo {
       .sort((a, b) => a.fecha.localeCompare(b.fecha));
   }
 
+  async listAllAlumnos(): Promise<AlumnoBase[]> {
+    return loadAlumnos();
+  }
+
+  async listAllPagos(): Promise<Pago[]> {
+    return loadPagos();
+  }
+
   async addPago(input: NuevoPago): Promise<Pago> {
     const pagos = loadPagos();
     const pago: Pago = {

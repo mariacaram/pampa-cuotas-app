@@ -103,16 +103,24 @@ export default function PampaApp() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold text-neutral-900">Pampa · Control de cuotas</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Elegí un colegio y un alumno para ver su saldo y registrar pagos.
-        </p>
-        {source && (
-          <p className="mt-1 text-xs text-neutral-400">
-            Fuente de datos: {source === "supabase" ? "base de datos (Supabase)" : "archivo local (modo prueba)"}
+      <header className="mb-8 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-neutral-900">Pampa · Control de cuotas</h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            Elegí un colegio y un alumno para ver su saldo y registrar pagos.
           </p>
-        )}
+          {source && (
+            <p className="mt-1 text-xs text-neutral-400">
+              Fuente de datos: {source === "supabase" ? "base de datos (Supabase)" : "archivo local (modo prueba)"}
+            </p>
+          )}
+        </div>
+        <a
+          href="/api/export"
+          className="whitespace-nowrap rounded-md border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+        >
+          ⬇ Exportar a Excel
+        </a>
       </header>
 
       {error && (
