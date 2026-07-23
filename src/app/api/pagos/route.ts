@@ -26,6 +26,8 @@ export async function POST(req: NextRequest) {
     monto,
     forma_de_pago: body.forma_de_pago || "Efectivo",
     interes: Number(body.interes) > 0 ? Number(body.interes) : 0,
+    interes_pct: Number(body.interes_pct) > 0 ? Number(body.interes_pct) : 0,
+    bonificacion: Number(body.bonificacion) > 0 ? Number(body.bonificacion) : 0,
     nota: body.nota || "",
   };
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Colegio } from "@/lib/types";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatDate } from "@/lib/format";
 import { Card, StatCard, SituacionPill } from "./ui";
 
 type PendienteColegio = {
@@ -21,6 +21,7 @@ type PendienteAlumno = {
   cuotasAtrasadas: number;
   atrasado: boolean;
   situacion: string;
+  proximoVencimiento: string;
 };
 type Pendiente = {
   scope: string;
@@ -204,6 +205,7 @@ export default function PendienteView({ colegios }: { colegios: Colegio[] }) {
                       <th className="p-3">Alumno</th>
                       <th className="p-3">Saldo</th>
                       <th className="p-3">Cuotas (pagadas/esperadas)</th>
+                      <th className="p-3">Próx. vence</th>
                       <th className="p-3">Atraso</th>
                       <th className="p-3">Situación</th>
                     </tr>
@@ -218,6 +220,9 @@ export default function PendienteView({ colegios }: { colegios: Colegio[] }) {
                         <td className="p-3 font-medium">{formatMoney(a.saldo)}</td>
                         <td className="p-3 text-neutral-600">
                           {a.cuotasPagadas} / {a.cuotasEsperadas}
+                        </td>
+                        <td className="p-3 text-neutral-600">
+                          {a.proximoVencimiento ? formatDate(a.proximoVencimiento) : "—"}
                         </td>
                         <td className="p-3">
                           {a.atrasado ? (

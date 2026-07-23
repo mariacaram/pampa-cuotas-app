@@ -8,6 +8,7 @@ function round2(n: number): number {
 export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
   const sumaPagos = pagos.reduce((acc, p) => acc + (p.monto || 0), 0);
   const interesTotal = pagos.reduce((acc, p) => acc + (p.interes || 0), 0);
+  const bonificacionTotal = pagos.reduce((acc, p) => acc + (p.bonificacion || 0), 0);
   const montoPagadoTotal = round2(base.monto_pagado_base + sumaPagos);
 
   const saldo = Math.max(0, round2(base.total_asignado - montoPagadoTotal));
@@ -31,11 +32,22 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
   const atrasado = cuotasAtrasadas > 0;
   const montoVencido = atrasado ? Math.min(saldo, round2(cuotasAtrasadas * montoCuota)) : 0;
 
+  // Próxima cuota impaga = (cuotasPagadas + 1); su vencimiento. "" si ya está saldado.
+  let proximoVencimiento = "";
+  if (saldo > 0 && cuotasPendientes > 0 && base.fecha_orden) {
+    const d = new Date(base.fecha_orden.length <= 10 ? base.fecha_orden + "T00:00:00" : base.fecha_orden);
+    if (!isNaN(d.getTime())) {
+      const venc = vencimientoCuota(d, Math.min(cuotas, cuotasPagadas + 1));
+      proximoVencimiento = `${venc.getFullYear()}-${String(venc.getMonth() + 1).padStart(2, "0")}-${String(venc.getDate()).padStart(2, "0")}`;
+    }
+  }
+
   return {
     ...base,
     pagos,
     montoPagadoTotal,
     interesTotal,
+    bonificacionTotal,
     saldo,
     montoCuota,
     cuotasPagadas,
@@ -45,6 +57,7 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
     cuotasAtrasadas,
     atrasado,
     montoVencido,
+    proximoVencimiento,
   };
 }
 

@@ -37,6 +37,8 @@ create table if not exists public.pagos (
   monto         numeric not null check (monto >= 0),
   forma_de_pago text,
   interes       numeric not null default 0 check (interes >= 0),
+  interes_pct   numeric not null default 0,   -- % de interés por atraso aplicado (referencia)
+  bonificacion  numeric not null default 0,   -- monto bonificado / descuento otorgado (registro)
   nota          text,
   creado_en     timestamptz not null default now()
 );

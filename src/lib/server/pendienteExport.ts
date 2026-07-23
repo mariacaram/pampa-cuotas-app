@@ -40,6 +40,7 @@ export async function buildPendienteXlsx(organizacion?: string): Promise<Buffer>
       "Cuotas pagadas",
       "Cuotas esperadas",
       "Cuotas atrasadas",
+      "Próx. vencimiento",
       "Atrasado",
       "Situación",
     ]);
@@ -50,6 +51,7 @@ export async function buildPendienteXlsx(organizacion?: string): Promise<Buffer>
         a.cuotasPagadas,
         a.cuotasEsperadas,
         a.cuotasAtrasadas,
+        a.proximoVencimiento || "",
         a.atrasado ? "SÍ" : "",
         a.situacion,
       ]);
@@ -58,7 +60,7 @@ export async function buildPendienteXlsx(organizacion?: string): Promise<Buffer>
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws["!cols"] = organizacion
-    ? [{ wch: 30 }, { wch: 12 }, { wch: 15 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 14 }]
+    ? [{ wch: 30 }, { wch: 12 }, { wch: 15 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 14 }]
     : [{ wch: 34 }, { wch: 18 }, { wch: 12 }, { wch: 18 }, { wch: 20 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Pendiente de cobro");
@@ -193,16 +195,18 @@ export async function buildPendientePdf(organizacion?: string): Promise<Buffer> 
     drawTable(ctx, cols, data, "Colegios ordenados por lo que falta cobrar");
   } else {
     const cols = [
-      { title: "Alumno", w: 0.34, align: "left" as const },
-      { title: "Saldo", w: 0.18, align: "right" as const },
-      { title: "Cuotas (pag/esp)", w: 0.18, align: "right" as const },
-      { title: "Atraso", w: 0.15, align: "right" as const },
-      { title: "Situacion", w: 0.15, align: "left" as const },
+      { title: "Alumno", w: 0.28, align: "left" as const },
+      { title: "Saldo", w: 0.16, align: "right" as const },
+      { title: "Cuotas", w: 0.13, align: "right" as const },
+      { title: "Prox. vence", w: 0.16, align: "right" as const },
+      { title: "Atraso", w: 0.14, align: "right" as const },
+      { title: "Situacion", w: 0.13, align: "left" as const },
     ];
     const data = d.alumnos.map((a) => [
       safe(a.alumno),
       money(a.saldo),
       `${a.cuotasPagadas}/${a.cuotasEsperadas}`,
+      a.proximoVencimiento ? a.proximoVencimiento.split("-").reverse().join("/") : "-",
       a.atrasado ? `${a.cuotasAtrasadas} atras.` : "al dia",
       safe(a.situacion),
     ]);

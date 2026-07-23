@@ -1,6 +1,6 @@
 "use client";
 
-export type View = "tablero" | "pendiente" | "cuotas";
+export type View = "tablero" | "pendiente" | "caja" | "cuotas";
 
 const ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   {
@@ -22,6 +22,17 @@ const ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
       <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
         <circle cx="12" cy="12" r="9" />
         <path d="M12 7v5l3 2" />
+      </svg>
+    ),
+  },
+  {
+    key: "caja",
+    label: "Control de caja",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+        <rect x="3" y="6" width="18" height="12" rx="2" />
+        <circle cx="12" cy="12" r="2.5" />
+        <path d="M6 9v6M18 9v6" />
       </svg>
     ),
   },

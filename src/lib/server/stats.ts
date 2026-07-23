@@ -55,6 +55,7 @@ export type PendienteAlumno = {
   cuotasAtrasadas: number;
   atrasado: boolean;
   situacion: string;
+  proximoVencimiento: string;
 };
 
 export type Pendiente = {
@@ -126,6 +127,7 @@ export async function getPendiente(organizacion?: string): Promise<Pendiente> {
           cuotasAtrasadas: a.cuotasAtrasadas,
           atrasado: a.atrasado,
           situacion: a.situacion,
+          proximoVencimiento: a.proximoVencimiento,
         }))
     : [];
 

@@ -5,6 +5,7 @@ import { Colegio } from "@/lib/types";
 import Sidebar, { View } from "./Sidebar";
 import TableroView from "./TableroView";
 import PendienteView from "./PendienteView";
+import CajaView from "./CajaView";
 import CuotasView from "./CuotasView";
 
 export default function AppRoot() {
@@ -58,6 +59,8 @@ export default function AppRoot() {
             <TableroView colegios={colegios} />
           ) : view === "pendiente" ? (
             <PendienteView colegios={colegios} />
+          ) : view === "caja" ? (
+            <CajaView />
           ) : (
             <CuotasView colegios={colegios} />
           )}

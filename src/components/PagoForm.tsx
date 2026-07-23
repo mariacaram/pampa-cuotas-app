@@ -1,30 +1,38 @@
 "use client";
 
 import { useState } from "react";
-import { FORMAS_DE_PAGO } from "@/lib/format";
+import { FORMAS_DE_PAGO, formatMoney } from "@/lib/format";
 import { NuevoPago } from "@/lib/types";
 
 type Props = {
   alumnoId: string;
+  montoCuota: number;
   onRegistrado: () => void;
 };
 
-export default function PagoForm({ alumnoId, onRegistrado }: Props) {
+export default function PagoForm({ alumnoId, montoCuota, onRegistrado }: Props) {
   const [monto, setMonto] = useState("");
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [formaDePago, setFormaDePago] = useState(FORMAS_DE_PAGO[0]);
   const [atrasado, setAtrasado] = useState(false);
-  const [interes, setInteres] = useState("");
+  const [interesPct, setInteresPct] = useState("");
+  const [conBonificacion, setConBonificacion] = useState(false);
+  const [bonificacion, setBonificacion] = useState("");
   const [nota, setNota] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const pct = Number(interesPct) || 0;
+  const interesMonto = atrasado ? Math.round(montoCuota * (pct / 100)) : 0;
+  const totalReferencia = Math.round(montoCuota + interesMonto);
+  const bonif = conBonificacion ? Number(bonificacion) || 0 : 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const montoNum = Number(monto);
     if (!Number.isFinite(montoNum) || montoNum <= 0) {
-      setError("Ingresá un monto mayor a 0.");
+      setError("Ingresá un monto cobrado mayor a 0.");
       return;
     }
     setSaving(true);
@@ -33,7 +41,9 @@ export default function PagoForm({ alumnoId, onRegistrado }: Props) {
       fecha,
       monto: montoNum,
       forma_de_pago: formaDePago,
-      interes: atrasado ? Number(interes) || 0 : 0,
+      interes: interesMonto,
+      interes_pct: atrasado ? pct : 0,
+      bonificacion: bonif,
       nota,
     };
     try {
@@ -47,9 +57,11 @@ export default function PagoForm({ alumnoId, onRegistrado }: Props) {
         throw new Error(data.error || "No se pudo registrar el pago");
       }
       setMonto("");
-      setInteres("");
+      setInteresPct("");
+      setBonificacion("");
       setNota("");
       setAtrasado(false);
+      setConBonificacion(false);
       onRegistrado();
     } catch (err) {
       setError(String(err instanceof Error ? err.message : err));
@@ -67,7 +79,7 @@ export default function PagoForm({ alumnoId, onRegistrado }: Props) {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
-          <label className="block text-xs text-neutral-500">Monto ($)</label>
+          <label className="block text-xs text-neutral-500">Monto cobrado ($)</label>
           <input
             type="number"
             min={0}
@@ -103,27 +115,62 @@ export default function PagoForm({ alumnoId, onRegistrado }: Props) {
         </div>
       </div>
 
-      <div>
+      {/* Interés por atraso (como %) */}
+      <div className="rounded-lg bg-neutral-50 p-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={atrasado} onChange={(e) => setAtrasado(e.target.checked)} />
+          Pago atrasado — aplicar interés (%)
+        </label>
+        {atrasado && (
+          <div className="mt-2 flex flex-wrap items-end gap-4">
+            <div>
+              <label className="block text-xs text-neutral-500">Interés (%)</label>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={interesPct}
+                onChange={(e) => setInteresPct(e.target.value)}
+                className="mt-1 w-28 rounded-md border border-neutral-300 p-2 text-sm"
+                placeholder="0"
+              />
+            </div>
+            <div className="text-xs text-neutral-600">
+              <p>Cuota: {formatMoney(montoCuota)}</p>
+              <p>Interés ({pct}%): {formatMoney(interesMonto)}</p>
+              <p className="font-semibold text-emerald-800">
+                Total de referencia: {formatMoney(totalReferencia)}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Bonificación otorgada */}
+      <div className="rounded-lg bg-neutral-50 p-3">
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={atrasado}
-            onChange={(e) => setAtrasado(e.target.checked)}
+            checked={conBonificacion}
+            onChange={(e) => setConBonificacion(e.target.checked)}
           />
-          Pago atrasado — aplicar interés
+          Otorgar una bonificación / descuento
         </label>
-        {atrasado && (
+        {conBonificacion && (
           <div className="mt-2">
-            <label className="block text-xs text-neutral-500">Monto de interés ($)</label>
+            <label className="block text-xs text-neutral-500">Monto bonificado ($)</label>
             <input
               type="number"
               min={0}
               step="any"
-              value={interes}
-              onChange={(e) => setInteres(e.target.value)}
+              value={bonificacion}
+              onChange={(e) => setBonificacion(e.target.value)}
               className="mt-1 w-40 rounded-md border border-neutral-300 p-2 text-sm"
               placeholder="0"
             />
+            <p className="mt-1 text-xs text-neutral-400">
+              Queda registrado como bonificación otorgada (aparece en el Control de caja).
+            </p>
           </div>
         )}
       </div>

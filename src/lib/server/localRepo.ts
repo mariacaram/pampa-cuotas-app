@@ -84,6 +84,8 @@ export class LocalFileRepo implements Repo {
       monto: input.monto,
       forma_de_pago: input.forma_de_pago,
       interes: input.interes,
+      interes_pct: input.interes_pct,
+      bonificacion: input.bonificacion,
       nota: input.nota,
       creado_en: new Date().toISOString(),
     };

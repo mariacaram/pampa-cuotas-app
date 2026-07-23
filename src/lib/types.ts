@@ -25,7 +25,9 @@ export type Pago = {
   fecha: string;
   monto: number;
   forma_de_pago: string;
-  interes: number;
+  interes: number; // monto de interés (calculado del %)
+  interes_pct: number; // % de interés por atraso aplicado
+  bonificacion: number; // monto bonificado / descuento otorgado
   nota: string;
   creado_en: string;
 };
@@ -36,6 +38,8 @@ export type NuevoPago = {
   monto: number;
   forma_de_pago: string;
   interes: number;
+  interes_pct: number;
+  bonificacion: number;
   nota: string;
 };
 
@@ -51,11 +55,13 @@ export type AlumnoComputed = AlumnoBase & {
   cuotasPagadas: number;
   cuotasPendientes: number;
   situacion: Situacion;
-  // Atraso estimado (1 cuota/mes desde fecha_orden).
+  // Atraso según vencimientos (1ª a fin de mes de la orden; resto el 15).
   cuotasEsperadas: number;
   cuotasAtrasadas: number;
   atrasado: boolean;
   montoVencido: number;
+  proximoVencimiento: string; // fecha ISO de la próxima cuota impaga, "" si está saldado
+  bonificacionTotal: number;
 };
 
 export type Colegio = {

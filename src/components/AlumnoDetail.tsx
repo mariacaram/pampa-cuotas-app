@@ -33,12 +33,18 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
           <Stat label="Plan de cuotas" value={String(alumno.plan_cuotas)} />
           <Stat label="Cuotas pagadas" value={String(alumno.cuotasPagadas)} />
           <Stat label="Cuotas pendientes" value={String(alumno.cuotasPendientes)} highlight />
-          <Stat label="N° orden" value={alumno.nro_orden || "—"} />
+          <Stat
+            label="Próx. vencimiento"
+            value={alumno.proximoVencimiento ? formatDate(alumno.proximoVencimiento) : "—"}
+          />
         </div>
 
-        {alumno.interesTotal > 0 && (
+        {(alumno.interesTotal > 0 || alumno.bonificacionTotal > 0) && (
           <p className="mt-3 text-xs text-neutral-500">
-            Interés por atraso acumulado: {formatMoney(alumno.interesTotal)}
+            {alumno.interesTotal > 0 && <>Interés acumulado: {formatMoney(alumno.interesTotal)}. </>}
+            {alumno.bonificacionTotal > 0 && (
+              <>Bonificaciones otorgadas: {formatMoney(alumno.bonificacionTotal)}.</>
+            )}
           </p>
         )}
 
@@ -56,7 +62,7 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
         </div>
       </Card>
 
-      <PagoForm alumnoId={alumno.alumno_id} onRegistrado={onRegistrado} />
+      <PagoForm alumnoId={alumno.alumno_id} montoCuota={alumno.montoCuota} onRegistrado={onRegistrado} />
 
       <div>
         <p className="mb-2 text-sm font-semibold text-neutral-800">
@@ -78,6 +84,7 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
                   <th className="p-3">Monto</th>
                   <th className="p-3">Forma</th>
                   <th className="p-3">Interés</th>
+                  <th className="p-3">Bonificación</th>
                   <th className="p-3">Nota</th>
                 </tr>
               </thead>
@@ -87,7 +94,10 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
                     <td className="p-3">{formatDate(p.fecha)}</td>
                     <td className="p-3">{formatMoney(p.monto)}</td>
                     <td className="p-3">{p.forma_de_pago}</td>
-                    <td className="p-3">{p.interes ? formatMoney(p.interes) : "—"}</td>
+                    <td className="p-3">
+                      {p.interes ? `${formatMoney(p.interes)}${p.interes_pct ? ` (${p.interes_pct}%)` : ""}` : "—"}
+                    </td>
+                    <td className="p-3">{p.bonificacion ? formatMoney(p.bonificacion) : "—"}</td>
                     <td className="p-3 text-neutral-500">{p.nota || "—"}</td>
                   </tr>
                 ))}
