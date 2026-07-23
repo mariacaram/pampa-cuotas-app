@@ -141,8 +141,8 @@ export default function PendienteView({ colegios }: { colegios: Colegio[] }) {
           </div>
 
           <p className="text-xs text-neutral-400">
-            El atraso es estimado: la planilla no trae vencimientos por cuota, así que se asume 1
-            cuota por mes desde la fecha de la orden.
+            Vencimientos: la 1ª cuota vence a fin del mes de la orden; la 2ª, 3ª, … el 15 de cada
+            mes siguiente. El atraso compara esos vencimientos contra la fecha de hoy.
           </p>
 
           {!colegio ? (

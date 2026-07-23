@@ -171,7 +171,7 @@ export async function buildPendientePdf(organizacion?: string): Promise<Buffer> 
   ctx.y -= boxH + 10;
 
   ctx.page.drawText(
-    safe("Atraso estimado: se asume 1 cuota por mes desde la fecha de la orden."),
+    safe("Vencimientos: 1a cuota a fin del mes de la orden; las siguientes, el 15 de cada mes."),
     { x: MARGIN, y: ctx.y, size: 7.5, font, color: MUTED }
   );
   ctx.y -= 18;

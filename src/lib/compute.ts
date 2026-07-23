@@ -22,10 +22,11 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
   if (montoPagadoTotal <= 0) situacion = "SIN PAGOS";
   else if (saldo <= 0) situacion = "PAGO TOTAL";
 
-  // Atraso ESTIMADO: la planilla no trae vencimientos por cuota, así que asumimos
-  // 1 cuota por mes desde la fecha de la orden (la 1ª vence el mes de la orden).
-  // cuotasEsperadas = cuántas ya deberían estar pagas a hoy. Si pagó menos, está atrasado.
-  const cuotasEsperadas = mesesDesde(base.fecha_orden, cuotas);
+  // Atraso según los vencimientos reales del negocio:
+  //  - 1ª cuota: vence a FIN del mes de la fecha_orden.
+  //  - 2ª, 3ª, …: vencen el 15 de cada mes siguiente.
+  // cuotasEsperadas = cuántas ya vencieron a hoy. Si pagó menos, está atrasado.
+  const cuotasEsperadas = cuotasVencidasHoy(base.fecha_orden, cuotas);
   const cuotasAtrasadas = saldo > 0 ? Math.max(0, cuotasEsperadas - cuotasPagadas) : 0;
   const atrasado = cuotasAtrasadas > 0;
   const montoVencido = atrasado ? Math.min(saldo, round2(cuotasAtrasadas * montoCuota)) : 0;
@@ -47,14 +48,29 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
   };
 }
 
-// Cuántas cuotas deberían estar pagas hoy, asumiendo 1 por mes desde la fecha de la orden.
-function mesesDesde(fechaOrden: string, planCuotas: number): number {
+// Fecha de vencimiento de la cuota k (1-based):
+//  - k = 1: último día del mes de la fecha_orden.
+//  - k >= 2: día 15 del mes (mes_orden + (k-1)).
+function vencimientoCuota(orden: Date, k: number): Date {
+  const year = orden.getFullYear();
+  const month = orden.getMonth(); // 0-based
+  if (k <= 1) {
+    // Día 0 del mes siguiente = último día del mes de la orden.
+    return new Date(year, month + 1, 0, 23, 59, 59, 999);
+  }
+  return new Date(year, month + (k - 1), 15, 23, 59, 59, 999);
+}
+
+// Cuántas cuotas ya vencieron a hoy (según los vencimientos del negocio), tope = planCuotas.
+function cuotasVencidasHoy(fechaOrden: string, planCuotas: number): number {
   if (!fechaOrden) return 0;
   const d = new Date(fechaOrden.length <= 10 ? fechaOrden + "T00:00:00" : fechaOrden);
   if (isNaN(d.getTime())) return 0;
   const hoy = new Date();
-  const meses =
-    (hoy.getFullYear() - d.getFullYear()) * 12 + (hoy.getMonth() - d.getMonth());
-  // +1 porque la primera cuota se considera vencida el mismo mes de la orden.
-  return Math.max(0, Math.min(planCuotas, meses + 1));
+  let vencidas = 0;
+  for (let k = 1; k <= planCuotas; k++) {
+    if (vencimientoCuota(d, k).getTime() <= hoy.getTime()) vencidas++;
+    else break; // los vencimientos son crecientes
+  }
+  return vencidas;
 }
