@@ -142,9 +142,9 @@ export default function TableroView({ colegios }: { colegios: Colegio[] }) {
                 centerValue={String(stats.totalAlumnos)}
                 centerLabel="alumnos"
                 segments={[
-                  { label: "Pagó todo", value: stats.situacion.PAGO_TOTAL, color: "#16a36a" },
-                  { label: "Pago parcial", value: stats.situacion.PAGO_PARCIAL, color: "#f59e0b" },
-                  { label: "Sin pagos", value: stats.situacion.SIN_PAGOS, color: "#cbd5cb" },
+                  { label: "Pagó todo", value: stats.situacion.PAGO_TOTAL, color: "#3072b4" },
+                  { label: "Pago parcial", value: stats.situacion.PAGO_PARCIAL, color: "#f4a72e" },
+                  { label: "Sin pagos", value: stats.situacion.SIN_PAGOS, color: "#c7d2dc" },
                 ]}
               />
             </Card>

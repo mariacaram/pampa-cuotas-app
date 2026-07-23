@@ -51,13 +51,7 @@ export default function Sidebar({
         <img
           src="/logo.jpg"
           alt="Pampa"
-          className="hidden h-16 w-full rounded-xl object-cover sm:block"
-        />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/logo.jpg"
-          alt="Pampa"
-          className="mx-auto block h-10 w-10 rounded-lg object-cover sm:hidden"
+          className="w-full rounded-xl object-contain"
         />
       </div>
 

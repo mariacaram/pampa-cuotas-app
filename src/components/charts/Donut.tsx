@@ -28,7 +28,7 @@ export default function Donut({ segments, centerLabel, centerValue }: Props) {
   return (
     <div className="flex items-center gap-5">
       <svg viewBox="0 0 160 160" className="h-40 w-40 -rotate-90">
-        <circle cx="80" cy="80" r={radius} fill="none" stroke="#eef3f0" strokeWidth={stroke} />
+        <circle cx="80" cy="80" r={radius} fill="none" stroke="#e6ecf3" strokeWidth={stroke} />
         {arcs.map((a, i) => (
           <circle
             key={i}

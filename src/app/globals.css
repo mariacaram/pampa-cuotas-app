@@ -1,16 +1,32 @@
 @import "tailwindcss";
 
-:root {
-  --background: #eef3f0;
-  --foreground: #14261e;
+/*
+  Paleta tomada del logo de Pampa: azul cielo (bordes) + naranja atardecer (centro),
+  texto blanco. Para no reescribir cada componente, redefinimos la escala "emerald"
+  (que ya usa toda la app) con los azules del logo. El naranja se mapea sobre "amber".
+*/
+@theme {
+  --color-emerald-50: #eef5fc;
+  --color-emerald-100: #d9e9f8;
+  --color-emerald-200: #b9d6f1;
+  --color-emerald-300: #8fbce7;
+  --color-emerald-400: #63a0da;
+  --color-emerald-500: #4088cd;
+  --color-emerald-600: #3072b4;
+  --color-emerald-700: #275d95;
+  --color-emerald-800: #244f7c;
+  --color-emerald-900: #1f3f61;
 
-  /* Paleta verde (referencia TeamHub) */
-  --brand-50: #e9f6ef;
-  --brand-100: #d1ecdd;
-  --brand-500: #16a36a;
-  --brand-600: #128a59;
-  --brand-700: #0e6f47;
-  --brand-900: #123f2c;
+  --color-amber-100: #fdeccb;
+  --color-amber-400: #f7bd5c;
+  --color-amber-500: #f4a72e;
+  --color-amber-600: #e5901a;
+  --color-amber-800: #8a5410;
+}
+
+:root {
+  --background: #eef2f7;
+  --foreground: #17232f;
 }
 
 @theme inline {
@@ -31,6 +47,6 @@ body {
   height: 8px;
 }
 .thin-scroll::-webkit-scrollbar-thumb {
-  background: #cbd8d1;
+  background: #c3d2e0;
   border-radius: 9999px;
 }
