@@ -1,0 +1,149 @@
+"use client";
+
+import { useState } from "react";
+import { FORMAS_DE_PAGO } from "@/lib/format";
+import { NuevoPago } from "@/lib/types";
+
+type Props = {
+  alumnoId: string;
+  onRegistrado: () => void;
+};
+
+export default function PagoForm({ alumnoId, onRegistrado }: Props) {
+  const [monto, setMonto] = useState("");
+  const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
+  const [formaDePago, setFormaDePago] = useState(FORMAS_DE_PAGO[0]);
+  const [atrasado, setAtrasado] = useState(false);
+  const [interes, setInteres] = useState("");
+  const [nota, setNota] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const montoNum = Number(monto);
+    if (!Number.isFinite(montoNum) || montoNum <= 0) {
+      setError("Ingresá un monto mayor a 0.");
+      return;
+    }
+    setSaving(true);
+    const body: NuevoPago = {
+      alumno_id: alumnoId,
+      fecha,
+      monto: montoNum,
+      forma_de_pago: formaDePago,
+      interes: atrasado ? Number(interes) || 0 : 0,
+      nota,
+    };
+    try {
+      const res = await fetch("/api/pagos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "No se pudo registrar el pago");
+      }
+      setMonto("");
+      setInteres("");
+      setNota("");
+      setAtrasado(false);
+      onRegistrado();
+    } catch (err) {
+      setError(String(err instanceof Error ? err.message : err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 rounded-xl border border-neutral-200 p-4">
+      <p className="text-sm font-medium text-neutral-800">Registrar un pago</p>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div>
+          <label className="block text-xs text-neutral-500">Monto ($)</label>
+          <input
+            type="number"
+            min={0}
+            step="any"
+            value={monto}
+            onChange={(e) => setMonto(e.target.value)}
+            className="mt-1 w-full rounded-md border border-neutral-300 p-2 text-sm"
+            placeholder="0"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-neutral-500">Fecha</label>
+          <input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            className="mt-1 w-full rounded-md border border-neutral-300 p-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-neutral-500">Forma de pago</label>
+          <select
+            value={formaDePago}
+            onChange={(e) => setFormaDePago(e.target.value)}
+            className="mt-1 w-full rounded-md border border-neutral-300 p-2 text-sm"
+          >
+            {FORMAS_DE_PAGO.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={atrasado}
+            onChange={(e) => setAtrasado(e.target.checked)}
+          />
+          Pago atrasado — aplicar interés
+        </label>
+        {atrasado && (
+          <div className="mt-2">
+            <label className="block text-xs text-neutral-500">Monto de interés ($)</label>
+            <input
+              type="number"
+              min={0}
+              step="any"
+              value={interes}
+              onChange={(e) => setInteres(e.target.value)}
+              className="mt-1 w-40 rounded-md border border-neutral-300 p-2 text-sm"
+              placeholder="0"
+            />
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-xs text-neutral-500">Nota (opcional)</label>
+        <input
+          value={nota}
+          onChange={(e) => setNota(e.target.value)}
+          className="mt-1 w-full rounded-md border border-neutral-300 p-2 text-sm"
+          placeholder="Ej.: pagó la 3° cuota"
+        />
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+      >
+        {saving ? "Guardando…" : "Registrar pago"}
+      </button>
+    </form>
+  );
+}

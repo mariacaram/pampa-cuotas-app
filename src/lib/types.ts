@@ -1,31 +1,59 @@
-export type Alumno = {
-  id: string;
-  colegio: string;
-  nombreOriginal: string;
-  nombreEstandarizado: string;
-  precioTotal: number;
-  pagado: number;
-  cuotasPactadas: number;
-  atrasado: boolean;
-  interes: number;
-};
-
-export type Dataset = {
-  nombre: string;
-  creadoEn: string;
-  alumnos: Alumno[];
-};
-
-export type ColumnMapping = {
-  colegio: string;
+// Datos base de un alumno, tal como vienen de la planilla (export del sistema).
+// No se modifican al cargar pagos; son el punto de partida del cálculo.
+export type AlumnoBase = {
+  alumno_id: string;
   alumno: string;
-  precioTotal: string;
-  pagado: string;
-  cuotasPactadas: string | null;
+  nombre_cliente: string;
+  organizacion: string;
+  nro_orden: string;
+  estado_orden: string;
+  fecha_orden: string;
+  forma_de_pago: string;
+  plan_cuotas: number;
+  cuotas_generadas: number;
+  cuotas_pagadas_base: number;
+  total_asignado: number;
+  monto_pagado_base: number;
+  saldo_base: number;
+  situacion_base: string;
 };
 
-export type ParsedSheet = {
-  headers: string[];
-  rows: Record<string, unknown>[];
-  headerRowIndex: number;
+// Un pago nuevo cargado desde la app.
+export type Pago = {
+  id: number | string;
+  alumno_id: string;
+  fecha: string;
+  monto: number;
+  forma_de_pago: string;
+  interes: number;
+  nota: string;
+  creado_en: string;
+};
+
+export type NuevoPago = {
+  alumno_id: string;
+  fecha: string;
+  monto: number;
+  forma_de_pago: string;
+  interes: number;
+  nota: string;
+};
+
+export type Situacion = "PAGO TOTAL" | "PAGO PARCIAL" | "SIN PAGOS";
+
+// Alumno con los totales recalculados en vivo (base + pagos nuevos).
+export type AlumnoComputed = AlumnoBase & {
+  pagos: Pago[];
+  montoPagadoTotal: number;
+  interesTotal: number;
+  saldo: number;
+  montoCuota: number;
+  cuotasPagadas: number;
+  cuotasPendientes: number;
+  situacion: Situacion;
+};
+
+export type Colegio = {
+  organizacion: string;
+  cantidadAlumnos: number;
 };
