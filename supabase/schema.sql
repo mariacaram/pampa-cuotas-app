@@ -21,7 +21,16 @@ create table if not exists public.alumnos (
   total_asignado     numeric not null default 0,
   monto_pagado_base  numeric not null default 0,
   saldo_base         numeric not null default 0,
-  situacion_base     text
+  situacion_base     text,
+  -- Detalle de producto (export del sistema, para análisis de productos estrella)
+  fecha_creacion_orden date,
+  productos          text,
+  producto1          text,
+  talle1             text,
+  producto2          text,
+  talle2             text,
+  producto3          text,
+  talle3             text
 );
 
 create index if not exists alumnos_organizacion_idx on public.alumnos (organizacion);

@@ -6,6 +6,7 @@ import Sidebar, { View } from "./Sidebar";
 import TableroView from "./TableroView";
 import PendienteView from "./PendienteView";
 import CajaView from "./CajaView";
+import ProductosView from "./ProductosView";
 import CuotasView from "./CuotasView";
 
 export default function AppRoot() {
@@ -61,6 +62,8 @@ export default function AppRoot() {
             <PendienteView colegios={colegios} />
           ) : view === "caja" ? (
             <CajaView />
+          ) : view === "productos" ? (
+            <ProductosView colegios={colegios} />
           ) : (
             <CuotasView colegios={colegios} />
           )}

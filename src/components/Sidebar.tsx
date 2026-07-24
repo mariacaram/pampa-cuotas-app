@@ -1,6 +1,6 @@
 "use client";
 
-export type View = "tablero" | "pendiente" | "caja" | "cuotas";
+export type View = "tablero" | "pendiente" | "caja" | "productos" | "cuotas";
 
 const ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   {
@@ -33,6 +33,15 @@ const ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
         <rect x="3" y="6" width="18" height="12" rx="2" />
         <circle cx="12" cy="12" r="2.5" />
         <path d="M6 9v6M18 9v6" />
+      </svg>
+    ),
+  },
+  {
+    key: "productos",
+    label: "Productos estrella",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+        <path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5-5-2.6-5 2.6 1-5.5-4-3.9 5.5-.8z" />
       </svg>
     ),
   },

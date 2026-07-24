@@ -47,7 +47,12 @@ async function loadRows() {
   if (fs.existsSync(LOCAL_FILE)) {
     console.log("Leyendo datos de", LOCAL_FILE);
     const rows = JSON.parse(fs.readFileSync(LOCAL_FILE, "utf-8"));
-    return rows.map((r) => ({ ...r, fecha_orden: r.fecha_orden || null }));
+    // Las columnas date no aceptan "" → las vacías van como null.
+    return rows.map((r) => ({
+      ...r,
+      fecha_orden: r.fecha_orden || null,
+      fecha_creacion_orden: r.fecha_creacion_orden || null,
+    }));
   }
 
   console.log("Descargando planilla de Google (SHEET_ID=" + SHEET_ID + ")…");

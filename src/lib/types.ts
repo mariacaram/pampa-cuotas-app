@@ -16,6 +16,15 @@ export type AlumnoBase = {
   monto_pagado_base: number;
   saldo_base: number;
   situacion_base: string;
+  // Detalle de producto (opcional; viene del export del sistema).
+  fecha_creacion_orden?: string;
+  productos?: string;
+  producto1?: string;
+  talle1?: string;
+  producto2?: string;
+  talle2?: string;
+  producto3?: string;
+  talle3?: string;
 };
 
 // Un pago nuevo cargado desde la app.

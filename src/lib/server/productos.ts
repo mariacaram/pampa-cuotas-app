@@ -1,0 +1,66 @@
+import "server-only";
+import { getRepo } from "./repo";
+import { AlumnoBase } from "@/lib/types";
+
+export type ProductoStat = { producto: string; pedidos: number; facturacion: number };
+export type ComboStat = { combo: string; pedidos: number };
+export type Productos = {
+  scope: string;
+  totalPedidos: number;
+  porProducto: ProductoStat[];
+  topCombos: ComboStat[];
+};
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+// Prendas de un pedido (producto1/2/3), normalizadas y sin vacíos / "s/t".
+function prendasDe(a: AlumnoBase): string[] {
+  return [a.producto1, a.producto2, a.producto3]
+    .map((p) => (p ?? "").trim().toUpperCase())
+    .filter((p) => p && p !== "S/T" && p !== "NONE");
+}
+
+export async function getProductos(organizacion?: string): Promise<Productos> {
+  const repo = await getRepo();
+  const alumnos = await repo.listAllAlumnos();
+  const filtered = organizacion
+    ? alumnos.filter((a) => a.organizacion === organizacion)
+    : alumnos;
+
+  const prodPedidos = new Map<string, number>();
+  const prodFact = new Map<string, number>();
+  const combos = new Map<string, number>();
+
+  for (const a of filtered) {
+    const prendas = prendasDe(a);
+    for (const p of prendas) {
+      prodPedidos.set(p, (prodPedidos.get(p) ?? 0) + 1);
+      const parte = prendas.length > 0 ? (a.total_asignado || 0) / prendas.length : 0;
+      prodFact.set(p, (prodFact.get(p) ?? 0) + parte);
+    }
+    const combo = (a.productos ?? "").trim();
+    if (combo) combos.set(combo, (combos.get(combo) ?? 0) + 1);
+  }
+
+  const porProducto = [...prodPedidos.entries()]
+    .map(([producto, pedidos]) => ({
+      producto,
+      pedidos,
+      facturacion: round2(prodFact.get(producto) ?? 0),
+    }))
+    .sort((a, b) => b.pedidos - a.pedidos);
+
+  const topCombos = [...combos.entries()]
+    .map(([combo, pedidos]) => ({ combo, pedidos }))
+    .sort((a, b) => b.pedidos - a.pedidos)
+    .slice(0, 12);
+
+  return {
+    scope: organizacion || "Todos los colegios",
+    totalPedidos: filtered.length,
+    porProducto,
+    topCombos,
+  };
+}
