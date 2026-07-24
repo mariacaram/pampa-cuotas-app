@@ -4,12 +4,36 @@ import { AlumnoBase } from "@/lib/types";
 
 export type ProductoStat = { producto: string; pedidos: number; facturacion: number };
 export type ComboStat = { combo: string; pedidos: number };
+export type ComboOficial = { combo: string; nombre: string; pedidos: number; facturacion: number };
 export type Productos = {
   scope: string;
   totalPedidos: number;
   porProducto: ProductoStat[];
   topCombos: ComboStat[];
+  porCombo: ComboOficial[];
 };
+
+// Combos oficiales del flyer (Canguro = BUZO en los datos).
+const COMBOS_OFICIALES: Record<string, string> = {
+  "1": "Combo 1 · Canguro + Chomba",
+  "2": "Combo 2 · Campera + Chomba",
+  "3": "Combo 3 · Canguro + Chomba + Babucha",
+  "4": "Combo 4 · Campera + Chomba + Babucha",
+  otros: "Otros / fuera de combo",
+};
+
+function comboOficialDe(prendas: string[]): string {
+  const s = new Set(prendas);
+  const buzo = s.has("BUZO");
+  const camp = s.has("CAMPERAS");
+  const bab = s.has("BABUCHA");
+  const chom = s.has("CHOMBA");
+  if (chom && buzo && !camp && !bab) return "1";
+  if (chom && camp && !buzo && !bab) return "2";
+  if (chom && buzo && bab && !camp) return "3";
+  if (chom && camp && bab && !buzo) return "4";
+  return "otros";
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -32,6 +56,8 @@ export async function getProductos(organizacion?: string): Promise<Productos> {
   const prodPedidos = new Map<string, number>();
   const prodFact = new Map<string, number>();
   const combos = new Map<string, number>();
+  const comboPedidos = new Map<string, number>();
+  const comboFact = new Map<string, number>();
 
   for (const a of filtered) {
     const prendas = prendasDe(a);
@@ -42,6 +68,11 @@ export async function getProductos(organizacion?: string): Promise<Productos> {
     }
     const combo = (a.productos ?? "").trim();
     if (combo) combos.set(combo, (combos.get(combo) ?? 0) + 1);
+
+    // Combo oficial del flyer (por productos).
+    const co = comboOficialDe(prendas);
+    comboPedidos.set(co, (comboPedidos.get(co) ?? 0) + 1);
+    comboFact.set(co, (comboFact.get(co) ?? 0) + (a.total_asignado || 0));
   }
 
   const porProducto = [...prodPedidos.entries()]
@@ -57,10 +88,21 @@ export async function getProductos(organizacion?: string): Promise<Productos> {
     .sort((a, b) => b.pedidos - a.pedidos)
     .slice(0, 12);
 
+  const orden = ["1", "2", "3", "4", "otros"];
+  const porCombo = orden
+    .filter((k) => (comboPedidos.get(k) ?? 0) > 0)
+    .map((k) => ({
+      combo: k,
+      nombre: COMBOS_OFICIALES[k],
+      pedidos: comboPedidos.get(k) ?? 0,
+      facturacion: round2(comboFact.get(k) ?? 0),
+    }));
+
   return {
     scope: organizacion || "Todos los colegios",
     totalPedidos: filtered.length,
     porProducto,
     topCombos,
+    porCombo,
   };
 }

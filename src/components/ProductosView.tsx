@@ -8,11 +8,13 @@ import BarList from "./charts/BarList";
 
 type ProductoStat = { producto: string; pedidos: number; facturacion: number };
 type ComboStat = { combo: string; pedidos: number };
+type ComboOficial = { combo: string; nombre: string; pedidos: number; facturacion: number };
 type Productos = {
   scope: string;
   totalPedidos: number;
   porProducto: ProductoStat[];
   topCombos: ComboStat[];
+  porCombo: ComboOficial[];
 };
 
 export default function ProductosView({ colegios }: { colegios: Colegio[] }) {
@@ -113,6 +115,34 @@ export default function ProductosView({ colegios }: { colegios: Colegio[] }) {
               sub={data.topCombos[0] ? `${data.topCombos[0].pedidos} pedidos` : ""}
             />
           </div>
+
+          <Card className="p-0">
+            <div className="border-b border-neutral-100 px-5 py-3">
+              <p className="text-sm font-semibold text-neutral-800">Por combo del flyer</p>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-neutral-50 text-left text-xs text-neutral-500">
+                <tr>
+                  <th className="p-3">Combo</th>
+                  <th className="p-3">Pedidos</th>
+                  <th className="p-3">% de pedidos</th>
+                  <th className="p-3">Facturación</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.porCombo.map((c) => (
+                  <tr key={c.combo} className="border-t border-neutral-100">
+                    <td className="p-3 font-medium">{c.nombre}</td>
+                    <td className="p-3">{c.pedidos.toLocaleString("es-AR")}</td>
+                    <td className="p-3">
+                      {data.totalPedidos > 0 ? Math.round((c.pedidos / data.totalPedidos) * 100) : 0}%
+                    </td>
+                    <td className="p-3">{formatMoney(c.facturacion)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card>

@@ -22,17 +22,24 @@ export async function GET(req: NextRequest) {
       ["Producto", "Pedidos", "Facturación aprox."],
       ...p.porProducto.map((x) => [x.producto, x.pedidos, Math.round(x.facturacion)]),
     ];
+    const porCombo = [
+      ["Combo", "Pedidos", "Facturación"],
+      ...p.porCombo.map((x) => [x.nombre, x.pedidos, Math.round(x.facturacion)]),
+    ];
     const combos = [
-      ["Combo", "Pedidos"],
+      ["Combo (productos)", "Pedidos"],
       ...p.topCombos.map((x) => [x.combo, x.pedidos]),
     ];
     const wb = XLSX.utils.book_new();
     const w1 = XLSX.utils.aoa_to_sheet(prod);
     w1["!cols"] = [{ wch: 18 }, { wch: 10 }, { wch: 18 }];
     XLSX.utils.book_append_sheet(wb, w1, "Por producto");
+    const w0 = XLSX.utils.aoa_to_sheet(porCombo);
+    w0["!cols"] = [{ wch: 40 }, { wch: 10 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, w0, "Por combo");
     const w2 = XLSX.utils.aoa_to_sheet(combos);
     w2["!cols"] = [{ wch: 40 }, { wch: 10 }];
-    XLSX.utils.book_append_sheet(wb, w2, "Combos");
+    XLSX.utils.book_append_sheet(wb, w2, "Combos (detalle)");
     const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
     const fecha = new Date().toISOString().slice(0, 10);
     const name = organizacion ? `productos-${slug(organizacion)}-${fecha}` : `productos-${fecha}`;
