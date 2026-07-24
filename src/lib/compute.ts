@@ -4,6 +4,42 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+const SENA_DEFAULT = 10000;
+// Hasta este monto, el primer pago se considera la seña (contempla señas con un extra).
+// Un primer pago mayor se toma como un anticipo, no como la seña.
+const SENA_TOPE = 25000;
+
+// La seña es el primer pago del pedido. Normalmente 10.000, pero puede ser mayor si el
+// pedido tenía un extra (ej. camiseta). Solo la deducimos del primer pago cuando es un
+// monto "chico" (<= SENA_TOPE); un primer pago grande es un anticipo, no la seña.
+function detectarSena(base: AlumnoBase): number {
+  if (
+    base.cuotas_pagadas_base === 1 &&
+    base.monto_pagado_base > 0 &&
+    base.monto_pagado_base <= SENA_TOPE
+  ) {
+    return base.monto_pagado_base;
+  }
+  return SENA_DEFAULT;
+}
+
+// Monto de cada cuota regular (la que se muestra en el plan de pagos), según el flyer.
+//  - plan_cuotas <= 1  -> pago al contado: la "cuota" es el total.
+//  - plan_cuotas >= 5  -> plan más largo que el flyer: todas las cuotas iguales (total / n).
+//  - plan_cuotas 2-4   -> promo del flyer: (total - seña) repartido entre las cuotas reales.
+// OJO: en la planilla, plan_cuotas cuenta la seña como la 1ª cuota, así que las cuotas
+// reales (después de la seña) son plan_cuotas - 1. El total ya trae incorporado el precio
+// del combo y el recargo de abril/julio, por eso no hace falta identificarlos acá.
+function montoCuotaRegular(base: AlumnoBase): number {
+  const total = base.total_asignado;
+  if (total <= 0) return 0;
+  const plan = base.plan_cuotas > 0 ? base.plan_cuotas : 1;
+  if (plan <= 1) return round2(total);
+  if (plan >= 5) return round2(total / plan);
+  const sena = detectarSena(base);
+  return round2((total - sena) / (plan - 1));
+}
+
 // Recalcula los totales de un alumno a partir de sus datos base + los pagos nuevos.
 export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
   const sumaPagos = pagos.reduce((acc, p) => acc + (p.monto || 0), 0);
@@ -14,7 +50,7 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
   const saldo = Math.max(0, round2(base.total_asignado - montoPagadoTotal));
 
   const cuotas = base.plan_cuotas > 0 ? base.plan_cuotas : 1;
-  const montoCuota = base.total_asignado > 0 ? round2(base.total_asignado / cuotas) : 0;
+  const montoCuota = montoCuotaRegular(base);
   // Cuotas pagadas = las que ya trae la planilla (cuotas_pagadas_base, que YA cuenta la seña
   // variable como 1ª cuota) + las cubiertas por los pagos NUEVOS de la app (por monto).
   // Si el saldo quedó en 0, se considera todo pagado.
