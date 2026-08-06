@@ -81,7 +81,7 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
 
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
-      <Card>
+      <Card className="relative z-30 overflow-visible">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-xs text-neutral-500">Colegio</label>
