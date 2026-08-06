@@ -1,6 +1,10 @@
 "use client";
 
+import { motion } from "framer-motion";
+
 export type View = "tablero" | "pendiente" | "caja" | "productos" | "cuotas";
+
+export const VIEW_ORDER: View[] = ["tablero", "pendiente", "caja", "productos", "cuotas"];
 
 const ITEMS: { key: View; label: string; icon: React.ReactNode }[] = [
   {
@@ -65,41 +69,60 @@ export default function Sidebar({
   onChange: (v: View) => void;
 }) {
   return (
-    <aside className="sticky top-0 flex h-screen w-16 flex-col border-r border-neutral-200/70 bg-white px-2 py-6 sm:w-60 sm:px-4">
-      <div className="mb-8 px-1 sm:px-2">
+    <aside className="sticky top-0 z-20 flex h-screen w-16 flex-col border-r border-neutral-200/70 bg-white/80 px-2 py-6 backdrop-blur-md sm:w-60 sm:px-4">
+      <motion.div
+        className="mb-8 px-1 sm:px-2"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/logo.jpg"
-          alt="Pampa"
-          className="w-full rounded-xl object-contain"
-        />
-      </div>
+        <img src="/logo.jpg" alt="Pampa" className="w-full rounded-xl object-contain shadow-sm" />
+      </motion.div>
 
       <nav className="space-y-1">
-        {ITEMS.map((item) => {
+        {ITEMS.map((item, i) => {
           const active = view === item.key;
           return (
             <button
               key={item.key}
               onClick={() => onChange(item.key)}
-              className={`flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-sm font-medium transition-colors sm:px-3 ${
-                active
-                  ? "bg-emerald-100 text-emerald-800"
-                  : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800"
+              aria-current={active ? "page" : undefined}
+              className={`group relative flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-sm font-medium transition-colors sm:px-3 ${
+                active ? "text-emerald-800" : "text-neutral-500 hover:text-neutral-900"
               }`}
-              title={item.label}
+              title={`${item.label}  ·  tecla ${i + 1}`}
             >
-              {item.icon}
-              <span className="hidden sm:block">{item.label}</span>
+              {active && (
+                <motion.span
+                  layoutId="nav-active"
+                  className="absolute inset-0 rounded-xl bg-emerald-100"
+                  transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                />
+              )}
+              <span className="relative z-10 transition-transform duration-200 group-hover:scale-110">
+                {item.icon}
+              </span>
+              <span className="relative z-10 hidden sm:block">{item.label}</span>
+              <span
+                className={`relative z-10 ml-auto hidden h-5 w-5 items-center justify-center rounded-md text-[11px] font-semibold sm:flex ${
+                  active ? "bg-white/70 text-emerald-700" : "bg-neutral-100 text-neutral-400 group-hover:bg-neutral-200"
+                }`}
+              >
+                {i + 1}
+              </span>
             </button>
           );
         })}
       </nav>
 
-      <div className="mt-auto hidden rounded-2xl bg-emerald-50 p-4 sm:block">
+      <div className="mt-auto hidden rounded-2xl bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm sm:block">
         <p className="text-sm font-semibold text-emerald-900">Control de cuotas</p>
         <p className="mt-1 text-xs text-emerald-700">
           Seguí pagos por colegio y descargá reportes para cada encargado.
+        </p>
+        <p className="mt-2 text-[11px] text-neutral-400">
+          Atajos: teclas <b>1–5</b> para navegar · <b>/</b> para buscar
         </p>
       </div>
     </aside>

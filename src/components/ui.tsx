@@ -1,14 +1,19 @@
 import { ReactNode } from "react";
+import CountUp from "./motion/CountUp";
 
 export function Card({
   children,
   className = "",
+  interactive = true,
 }: {
   children: ReactNode;
   className?: string;
+  interactive?: boolean;
 }) {
   return (
-    <div className={`rounded-2xl border border-neutral-200/70 bg-white p-5 shadow-sm ${className}`}>
+    <div
+      className={`card bg-white ${interactive ? "card-interactive" : ""} p-5 ${className}`}
+    >
       {children}
     </div>
   );
@@ -19,22 +24,37 @@ export function StatCard({
   value,
   sub,
   accent = false,
+  animateTo,
+  format,
 }: {
   label: string;
-  value: string;
+  value?: string;
   sub?: string;
   accent?: boolean;
+  animateTo?: number;
+  format?: (n: number) => string;
 }) {
   return (
     <div
-      className={`rounded-2xl border p-5 shadow-sm ${
-        accent
-          ? "border-emerald-700 bg-emerald-700 text-white"
-          : "border-neutral-200/70 bg-white"
+      className={`card card-interactive p-5 ${
+        accent ? "border-transparent bg-emerald-700 text-white" : "bg-white"
       }`}
+      style={
+        accent
+          ? { boxShadow: "0 10px 26px rgba(39, 93, 149, 0.35)" }
+          : undefined
+      }
     >
-      <p className={`text-xs ${accent ? "text-emerald-100" : "text-neutral-500"}`}>{label}</p>
-      <p className="mt-1 text-2xl font-bold">{value}</p>
+      <p className={`text-xs font-medium ${accent ? "text-emerald-100" : "text-neutral-500"}`}>
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-bold tracking-tight">
+        {animateTo !== undefined && format ? (
+          <CountUp value={animateTo} format={format} />
+        ) : (
+          value
+        )}
+      </p>
       {sub && (
         <p className={`mt-1 text-xs ${accent ? "text-emerald-100" : "text-neutral-400"}`}>{sub}</p>
       )}
@@ -51,7 +71,7 @@ const PILL: Record<string, string> = {
 export function SituacionPill({ situacion }: { situacion: string }) {
   return (
     <span
-      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
         PILL[situacion] ?? "bg-neutral-200 text-neutral-700"
       }`}
     >

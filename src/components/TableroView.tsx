@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { Colegio } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
 import { Card, StatCard } from "./ui";
+import { Reveal, Stagger, StaggerItem } from "./motion/Reveal";
 import Donut from "./charts/Donut";
 import BarList from "./charts/BarList";
 
@@ -91,7 +93,7 @@ export default function TableroView({ colegios }: { colegios: Colegio[] }) {
           {colegio && (
             <a
               href={`/api/export?organizacion=${encodeURIComponent(colegio)}`}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              className="btn btn-primary rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
             >
               ⬇ Reporte del colegio
             </a>
@@ -102,41 +104,52 @@ export default function TableroView({ colegios }: { colegios: Colegio[] }) {
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       {loading && !stats ? (
-        <p className="text-sm text-neutral-400">Cargando estadísticas…</p>
+        <StatsSkeleton />
       ) : stats ? (
         <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="Alumnos" value={stats.totalAlumnos.toLocaleString("es-AR")} />
-            <StatCard label="Total asignado" value={formatMoney(stats.totalAsignado)} />
-            <StatCard
-              label="Cobrado"
-              value={formatMoney(stats.totalCobrado)}
-              sub={`${stats.pctCobrado}% del total`}
-              accent
-            />
-            <StatCard label="Saldo pendiente" value={formatMoney(stats.saldoPendiente)} />
-          </div>
+          <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StaggerItem>
+              <StatCard label="Alumnos" animateTo={stats.totalAlumnos} format={(n) => Math.round(n).toLocaleString("es-AR")} />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Total asignado" animateTo={stats.totalAsignado} format={formatMoney} />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard
+                label="Cobrado"
+                animateTo={stats.totalCobrado}
+                format={formatMoney}
+                sub={`${stats.pctCobrado}% del total`}
+                accent
+              />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Saldo pendiente" animateTo={stats.saldoPendiente} format={formatMoney} />
+            </StaggerItem>
+          </Stagger>
 
           {/* Barra de progreso de cobranza */}
-          <Card>
+          <Reveal><Card>
             <div className="mb-2 flex items-center justify-between text-sm">
               <span className="font-semibold text-neutral-800">Cobrado vs pendiente</span>
               <span className="text-neutral-500">{stats.pctCobrado}% cobrado</span>
             </div>
             <div className="flex h-4 w-full overflow-hidden rounded-full bg-neutral-100">
-              <div
-                className="h-full bg-emerald-500"
-                style={{ width: `${stats.pctCobrado}%` }}
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"
+                initial={{ width: 0 }}
+                animate={{ width: `${stats.pctCobrado}%` }}
+                transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
               />
             </div>
             <div className="mt-2 flex justify-between text-xs text-neutral-500">
               <span>Cobrado: {formatMoney(stats.totalCobrado)}</span>
               <span>Pendiente: {formatMoney(stats.saldoPendiente)}</span>
             </div>
-          </Card>
+          </Card></Reveal>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card>
+            <Reveal><Card>
               <p className="mb-4 font-semibold text-neutral-800">Estado de pagos</p>
               <Donut
                 centerValue={String(stats.totalAlumnos)}
@@ -147,19 +160,19 @@ export default function TableroView({ colegios }: { colegios: Colegio[] }) {
                   { label: "Sin pagos", value: stats.situacion.SIN_PAGOS, color: "#c7d2dc" },
                 ]}
               />
-            </Card>
+            </Card></Reveal>
 
-            <Card>
+            <Reveal delay={0.08}><Card>
               <p className="mb-4 font-semibold text-neutral-800">Formas de pago</p>
               <BarList
                 items={stats.formasDePago.map((f) => ({ label: f.forma, value: f.cantidad }))}
                 barClass="bg-emerald-400"
               />
-            </Card>
+            </Card></Reveal>
           </div>
 
           {stats.topColegiosPorSaldo.length > 0 && (
-            <Card>
+            <Reveal><Card>
               <p className="mb-4 font-semibold text-neutral-800">
                 {colegio ? "Saldo pendiente del colegio" : "Colegios que más deben"}
               </p>
@@ -172,10 +185,27 @@ export default function TableroView({ colegios }: { colegios: Colegio[] }) {
                 formatValue={formatMoney}
                 barClass="bg-emerald-600"
               />
-            </Card>
+            </Card></Reveal>
           )}
         </>
       ) : null}
+    </div>
+  );
+}
+
+function StatsSkeleton() {
+  return (
+    <div className="animate-fade space-y-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-24 rounded-2xl bg-neutral-200/60" />
+        ))}
+      </div>
+      <div className="h-20 rounded-2xl bg-neutral-200/50" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="h-56 rounded-2xl bg-neutral-200/50" />
+        <div className="h-56 rounded-2xl bg-neutral-200/50" />
+      </div>
     </div>
   );
 }

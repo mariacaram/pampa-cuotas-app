@@ -5,6 +5,7 @@ import { Colegio } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
 import { Card, StatCard } from "./ui";
 import BarList from "./charts/BarList";
+import { Stagger, StaggerItem } from "./motion/Reveal";
 
 type ProductoStat = { producto: string; pedidos: number; facturacion: number };
 type ComboStat = { combo: string; pedidos: number };
@@ -88,7 +89,7 @@ export default function ProductosView({ colegios }: { colegios: Colegio[] }) {
           </select>
           <a
             href={`/api/productos/export${colegio ? `?organizacion=${encodeURIComponent(colegio)}` : ""}`}
-            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            className="btn btn-primary rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
           >
             ⬇ Excel
           </a>
@@ -101,20 +102,28 @@ export default function ProductosView({ colegios }: { colegios: Colegio[] }) {
         <p className="text-sm text-neutral-400">Cargando…</p>
       ) : data ? (
         <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="Pedidos" value={data.totalPedidos.toLocaleString("es-AR")} accent />
-            <StatCard label="Prendas vendidas" value={totalPrendas.toLocaleString("es-AR")} />
-            <StatCard
-              label="Prenda #1"
-              value={data.porProducto[0]?.producto ?? "—"}
-              sub={data.porProducto[0] ? `${data.porProducto[0].pedidos} pedidos` : ""}
-            />
-            <StatCard
-              label="Combo #1"
-              value={data.topCombos[0]?.combo ?? "—"}
-              sub={data.topCombos[0] ? `${data.topCombos[0].pedidos} pedidos` : ""}
-            />
-          </div>
+          <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StaggerItem>
+              <StatCard label="Pedidos" animateTo={data.totalPedidos} format={(n) => Math.round(n).toLocaleString("es-AR")} accent />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Prendas vendidas" animateTo={totalPrendas} format={(n) => Math.round(n).toLocaleString("es-AR")} />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard
+                label="Prenda #1"
+                value={data.porProducto[0]?.producto ?? "—"}
+                sub={data.porProducto[0] ? `${data.porProducto[0].pedidos} pedidos` : ""}
+              />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard
+                label="Combo #1"
+                value={data.topCombos[0]?.combo ?? "—"}
+                sub={data.topCombos[0] ? `${data.topCombos[0].pedidos} pedidos` : ""}
+              />
+            </StaggerItem>
+          </Stagger>
 
           <Card className="p-0">
             <div className="border-b border-neutral-100 px-5 py-3">

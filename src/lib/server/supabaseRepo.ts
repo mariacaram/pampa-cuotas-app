@@ -3,6 +3,13 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { AlumnoBase, Colegio, NuevoPago, Pago } from "@/lib/types";
 import { Repo } from "./repo";
 
+// Cache en memoria (por instancia del servidor). Los datos base cambian poco (reimport
+// esporádico), así que un TTL corto evita re-bajar 5000+ filas en cada request/navegación.
+const TTL_MS = 90_000;
+type Cache<T> = { data: T; expires: number } | null;
+let alumnosCache: Cache<AlumnoBase[]> = null;
+let pagosCache: Cache<Pago[]> = null;
+
 // Implementación de producción sobre Supabase (Postgres).
 // Usa la Service Role Key: SOLO se usa del lado del servidor, nunca se envía al navegador.
 export class SupabaseRepo implements Repo {
@@ -16,10 +23,7 @@ export class SupabaseRepo implements Repo {
   }
 
   // Trae TODAS las filas de una consulta, paginando de a 1000 (límite por request de Supabase).
-  private async fetchAll<T>(
-    table: string,
-    columns: string
-  ): Promise<T[]> {
+  private async fetchAll<T>(table: string, columns: string): Promise<T[]> {
     const PAGE = 1000;
     const out: T[] = [];
     for (let from = 0; ; from += PAGE) {
@@ -35,54 +39,48 @@ export class SupabaseRepo implements Repo {
     return out;
   }
 
+  async listAllAlumnos(): Promise<AlumnoBase[]> {
+    if (alumnosCache && alumnosCache.expires > Date.now()) return alumnosCache.data;
+    const data = await this.fetchAll<AlumnoBase>("alumnos", "*");
+    alumnosCache = { data, expires: Date.now() + TTL_MS };
+    return data;
+  }
+
+  async listAllPagos(): Promise<Pago[]> {
+    if (pagosCache && pagosCache.expires > Date.now()) return pagosCache.data;
+    const data = await this.fetchAll<Pago>("pagos", "*");
+    pagosCache = { data, expires: Date.now() + TTL_MS };
+    return data;
+  }
+
+  // ---- Todo lo demás se sirve desde los dos arrays cacheados (sin round-trips extra) ----
+
   async listColegios(): Promise<Colegio[]> {
-    // Traemos solo la columna organizacion (paginado) y contamos en memoria.
-    const rows = await this.fetchAll<{ organizacion: string }>("alumnos", "organizacion");
+    const rows = await this.listAllAlumnos();
     const counts = new Map<string, number>();
-    for (const row of rows) {
-      counts.set(row.organizacion, (counts.get(row.organizacion) ?? 0) + 1);
-    }
+    for (const row of rows) counts.set(row.organizacion, (counts.get(row.organizacion) ?? 0) + 1);
     return [...counts.entries()]
       .map(([organizacion, cantidadAlumnos]) => ({ organizacion, cantidadAlumnos }))
       .sort((a, b) => a.organizacion.localeCompare(b.organizacion, "es"));
   }
 
-  async listAllAlumnos(): Promise<AlumnoBase[]> {
-    return this.fetchAll<AlumnoBase>("alumnos", "*");
-  }
-
-  async listAllPagos(): Promise<Pago[]> {
-    return this.fetchAll<Pago>("pagos", "*");
-  }
-
   async listAlumnosByColegio(organizacion: string): Promise<AlumnoBase[]> {
-    const { data, error } = await this.db
-      .from("alumnos")
-      .select("*")
-      .eq("organizacion", organizacion)
-      .order("alumno", { ascending: true });
-    if (error) throw error;
-    return (data ?? []) as AlumnoBase[];
+    const rows = await this.listAllAlumnos();
+    return rows
+      .filter((a) => a.organizacion === organizacion)
+      .sort((a, b) => a.alumno.localeCompare(b.alumno, "es"));
   }
 
   async getAlumnoBase(alumnoId: string): Promise<AlumnoBase | null> {
-    const { data, error } = await this.db
-      .from("alumnos")
-      .select("*")
-      .eq("alumno_id", alumnoId)
-      .maybeSingle();
-    if (error) throw error;
-    return (data as AlumnoBase | null) ?? null;
+    const rows = await this.listAllAlumnos();
+    return rows.find((a) => a.alumno_id === alumnoId) ?? null;
   }
 
   async listPagos(alumnoId: string): Promise<Pago[]> {
-    const { data, error } = await this.db
-      .from("pagos")
-      .select("*")
-      .eq("alumno_id", alumnoId)
-      .order("fecha", { ascending: true });
-    if (error) throw error;
-    return (data ?? []) as Pago[];
+    const rows = await this.listAllPagos();
+    return rows
+      .filter((p) => p.alumno_id === alumnoId)
+      .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
   }
 
   async addPago(input: NuevoPago): Promise<Pago> {
@@ -101,6 +99,7 @@ export class SupabaseRepo implements Repo {
       .select()
       .single();
     if (error) throw error;
+    pagosCache = null; // invalidar: el próximo cálculo incluye el pago nuevo
     return data as Pago;
   }
 }

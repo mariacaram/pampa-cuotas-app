@@ -231,7 +231,7 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
       <button
         type="submit"
         disabled={saving}
-        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
+        className="btn btn-primary rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-40"
       >
         {saving ? "Guardando…" : "Registrar pago"}
       </button>

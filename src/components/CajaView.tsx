@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Card, StatCard } from "./ui";
+import { Stagger, StaggerItem } from "./motion/Reveal";
 
 type CajaMedio = { forma: string; cantidad: number; monto: number };
 type CajaPago = {
@@ -97,13 +98,13 @@ export default function CajaView() {
           </div>
           <a
             href={`/api/caja/export?format=xlsx&${qs}`}
-            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            className="btn btn-primary rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
           >
             ⬇ Excel
           </a>
           <a
             href={`/api/caja/export?format=pdf&${qs}`}
-            className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+            className="btn rounded-lg border border-emerald-600 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
           >
             ⬇ PDF
           </a>
@@ -116,12 +117,20 @@ export default function CajaView() {
         <p className="text-sm text-neutral-400">Cargando…</p>
       ) : data ? (
         <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="Total cobrado" value={formatMoney(data.totalCobrado)} accent />
-            <StatCard label="Cantidad de pagos" value={String(data.cantidadPagos)} />
-            <StatCard label="Total bonificado" value={formatMoney(data.totalBonificado)} />
-            <StatCard label="Total interés" value={formatMoney(data.totalInteres)} />
-          </div>
+          <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StaggerItem>
+              <StatCard label="Total cobrado" animateTo={data.totalCobrado} format={formatMoney} accent />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Cantidad de pagos" animateTo={data.cantidadPagos} format={(n) => String(Math.round(n))} />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Total bonificado" animateTo={data.totalBonificado} format={formatMoney} />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Total interés" animateTo={data.totalInteres} format={formatMoney} />
+            </StaggerItem>
+          </Stagger>
 
           <Card>
             <p className="mb-4 font-semibold text-neutral-800">Por medio de pago</p>

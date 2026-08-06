@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Colegio } from "@/lib/types";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Card, StatCard, SituacionPill } from "./ui";
+import { Stagger, StaggerItem } from "./motion/Reveal";
+
+const intFmt = (n: number) => Math.round(n).toLocaleString("es-AR");
 
 type PendienteColegio = {
   organizacion: string;
@@ -104,13 +107,13 @@ export default function PendienteView({ colegios }: { colegios: Colegio[] }) {
           </select>
           <a
             href={`/api/pendiente/export?format=xlsx${colegio ? `&organizacion=${encodeURIComponent(colegio)}` : ""}`}
-            className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            className="btn btn-primary rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
           >
             ⬇ Excel
           </a>
           <a
             href={`/api/pendiente/export?format=pdf${colegio ? `&organizacion=${encodeURIComponent(colegio)}` : ""}`}
-            className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
+            className="btn rounded-lg border border-emerald-600 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"
           >
             ⬇ PDF
           </a>
@@ -123,23 +126,20 @@ export default function PendienteView({ colegios }: { colegios: Colegio[] }) {
         <p className="text-sm text-neutral-400">Cargando…</p>
       ) : data ? (
         <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="Total pendiente" value={formatMoney(data.totalPendiente)} accent />
-            <StatCard
-              label="Alumnos con saldo"
-              value={data.alumnosPendientes.toLocaleString("es-AR")}
-            />
-            <StatCard
-              label="Alumnos atrasados"
-              value={data.alumnosAtrasados.toLocaleString("es-AR")}
-              sub="atrasados en cuotas"
-            />
-            <StatCard
-              label="Monto vencido (est.)"
-              value={formatMoney(data.montoVencido)}
-              sub="lo que ya debería estar pago"
-            />
-          </div>
+          <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StaggerItem>
+              <StatCard label="Total pendiente" animateTo={data.totalPendiente} format={formatMoney} accent />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Alumnos con saldo" animateTo={data.alumnosPendientes} format={intFmt} />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Alumnos atrasados" animateTo={data.alumnosAtrasados} format={intFmt} sub="atrasados en cuotas" />
+            </StaggerItem>
+            <StaggerItem>
+              <StatCard label="Monto vencido (est.)" animateTo={data.montoVencido} format={formatMoney} sub="lo que ya debería estar pago" />
+            </StaggerItem>
+          </Stagger>
 
           <p className="text-xs text-neutral-400">
             Vencimientos: la 1ª cuota vence a fin del mes de la orden; la 2ª, 3ª, … el 15 de cada
