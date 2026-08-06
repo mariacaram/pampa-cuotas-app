@@ -62,15 +62,31 @@ function cuotaFlyer(base: AlumnoBase, nCuotas: number): number | null {
 }
 
 // La seña es el primer pago del pedido. Normalmente 10.000, pero puede ser mayor si el
-// pedido tenía un extra (ej. camiseta). Solo la deducimos del primer pago cuando es un
-// monto "chico" (<= SENA_TOPE); un primer pago grande es un anticipo, no la seña.
+// pedido tenía un extra (el extra a veces se cobra en la seña, no en una cuota).
+// La deducimos de lo REALMENTE pagado, para no adivinar dónde quedó el extra:
+//   seña = pagado − (cuotas reales ya pagadas × cuota del flyer)
+// Ej: pagó 96.000 en 3 cuotas de un Combo1 abril (cuota 38.000) → seña = 96.000 − 38.000×2 = 20.000.
 function detectarSena(base: AlumnoBase): number {
   // Ventas cargadas desde la app (nro_orden "APP-…"): la seña la fijó el usuario,
   // así que la tomamos exacta (sin el tope, que es solo para datos importados).
   const esApp = (base.nro_orden || "").startsWith("APP-");
-  if (base.cuotas_pagadas_base === 1 && base.monto_pagado_base > 0) {
-    if (esApp) return base.monto_pagado_base;
-    if (base.monto_pagado_base <= SENA_TOPE) return base.monto_pagado_base;
+  const pagadas = base.cuotas_pagadas_base;
+  const pagado = base.monto_pagado_base;
+  if (pagadas >= 1 && pagado > 0) {
+    // Deducir la seña de lo pagado (si el combo es identificable): descuenta las cuotas
+    // reales ya cobradas, valuadas al precio del flyer. Lo que queda es la seña real.
+    const nReales = (base.plan_cuotas > 0 ? base.plan_cuotas : 1) - 1;
+    const fc = cuotaFlyer(base, nReales);
+    if (fc !== null && nReales >= 1) {
+      const realesPagadas = Math.min(pagadas - 1, nReales);
+      const inferida = round2(pagado - fc * realesPagadas);
+      if (inferida > 0 && inferida <= base.total_asignado) return inferida;
+    }
+    // Fallback: si solo se pagó la seña, la tomamos directa (con tope para importados).
+    if (pagadas === 1) {
+      if (esApp) return pagado;
+      if (pagado <= SENA_TOPE) return pagado;
+    }
   }
   return SENA_DEFAULT;
 }
