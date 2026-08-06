@@ -154,42 +154,8 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
         />
       )}
 
-      {/* Buscador global por alumno */}
+      {/* Colegio y Alumno — en cualquier orden */}
       <Card className="relative z-40 overflow-visible">
-        <label className="block text-xs text-neutral-500">Buscar alumno (por nombre, sin elegir colegio)</label>
-        <div className="relative mt-1">
-          <input
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setShowResults(true);
-            }}
-            onFocus={() => setShowResults(true)}
-            placeholder="Escribí el nombre del alumno…"
-            className="w-full rounded-md border border-neutral-300 p-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-          />
-          {showResults && q.trim().length >= 2 && (
-            <div className="thin-scroll absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-auto rounded-lg border border-neutral-200 bg-white shadow-lg">
-              {buscando && <p className="p-3 text-sm text-neutral-400">Buscando…</p>}
-              {!buscando && resultados.length === 0 && (
-                <p className="p-3 text-sm text-neutral-400">Sin resultados.</p>
-              )}
-              {resultados.map((a) => (
-                <button
-                  key={a.alumno_id}
-                  onClick={() => seleccionarAlumno(a.alumno_id, a.organizacion)}
-                  className="flex w-full items-center justify-between gap-3 border-t border-neutral-100 px-3 py-2 text-left text-sm first:border-t-0 hover:bg-emerald-50/60"
-                >
-                  <span className="font-medium text-neutral-800">{a.alumno}</span>
-                  <span className="text-xs text-neutral-500">{a.organizacion}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </Card>
-
-      <Card className="relative z-30 overflow-visible">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-xs text-neutral-500">Colegio</label>
@@ -202,16 +168,51 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
           </div>
           <div>
             <label className="block text-xs text-neutral-500">Alumno</label>
-            <AlumnoCombobox
-              alumnos={alumnos}
-              value={alumnoId}
-              onChange={setAlumnoId}
-              disabled={!colegio}
-              loading={loadingAlumnos}
-              className="mt-1 w-full"
-            />
+            {colegio ? (
+              <AlumnoCombobox
+                alumnos={alumnos}
+                value={alumnoId}
+                onChange={setAlumnoId}
+                loading={loadingAlumnos}
+                className="mt-1 w-full"
+              />
+            ) : (
+              <div className="relative mt-1">
+                <input
+                  value={q}
+                  onChange={(e) => {
+                    setQ(e.target.value);
+                    setShowResults(true);
+                  }}
+                  onFocus={() => setShowResults(true)}
+                  placeholder="Buscá por nombre (sin elegir colegio)…"
+                  className="w-full rounded-md border border-neutral-300 p-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                />
+                {showResults && q.trim().length >= 2 && (
+                  <div className="thin-scroll absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-auto rounded-lg border border-neutral-200 bg-white shadow-lg">
+                    {buscando && <p className="p-3 text-sm text-neutral-400">Buscando…</p>}
+                    {!buscando && resultados.length === 0 && (
+                      <p className="p-3 text-sm text-neutral-400">Sin resultados.</p>
+                    )}
+                    {resultados.map((a) => (
+                      <button
+                        key={a.alumno_id}
+                        onClick={() => seleccionarAlumno(a.alumno_id, a.organizacion)}
+                        className="flex w-full items-center justify-between gap-3 border-t border-neutral-100 px-3 py-2 text-left text-sm first:border-t-0 hover:bg-emerald-50/60"
+                      >
+                        <span className="font-medium text-neutral-800">{a.alumno}</span>
+                        <span className="text-xs text-neutral-500">{a.organizacion}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
+        <p className="mt-2 text-xs text-neutral-400">
+          Empezá por donde quieras: buscá el alumno por nombre, o elegí primero el colegio.
+        </p>
       </Card>
 
       {loadingAlumno && <p className="text-sm text-neutral-400">Cargando alumno…</p>}
