@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Colegio } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
 import { Card, StatCard } from "./ui";
 import BarList from "./charts/BarList";
 import { Stagger, StaggerItem } from "./motion/Reveal";
+import ColegioCombobox from "./ColegioCombobox";
 
 type ProductoStat = { producto: string; pedidos: number; facturacion: number };
 type ComboStat = { combo: string; pedidos: number };
@@ -19,7 +20,6 @@ type Productos = {
 };
 
 export default function ProductosView({ colegios }: { colegios: Colegio[] }) {
-  const [filtro, setFiltro] = useState("");
   const [colegio, setColegio] = useState("");
   const [data, setData] = useState<Productos | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,12 +48,6 @@ export default function ProductosView({ colegios }: { colegios: Colegio[] }) {
     };
   }, [colegio]);
 
-  const colegiosFiltrados = useMemo(() => {
-    const q = filtro.trim().toLocaleLowerCase("es");
-    if (!q) return colegios;
-    return colegios.filter((c) => c.organizacion.toLocaleLowerCase("es").includes(q));
-  }, [colegios, filtro]);
-
   const totalPrendas = data ? data.porProducto.reduce((s, p) => s + p.pedidos, 0) : 0;
 
   return (
@@ -68,25 +62,13 @@ export default function ProductosView({ colegios }: { colegios: Colegio[] }) {
         <div className="flex flex-wrap items-end gap-2">
           <div>
             <label className="block text-xs text-neutral-500">Filtrar por colegio</label>
-            <input
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value)}
-              placeholder="Buscar…"
-              className="mt-1 w-44 rounded-lg border border-neutral-300 p-2 text-sm"
+            <ColegioCombobox
+              colegios={colegios}
+              value={colegio}
+              onChange={setColegio}
+              className="mt-1 w-72"
             />
           </div>
-          <select
-            value={colegio}
-            onChange={(e) => setColegio(e.target.value)}
-            className="rounded-lg border border-neutral-300 p-2 text-sm"
-          >
-            <option value="">Todos los colegios ({colegios.length})</option>
-            {colegiosFiltrados.map((c) => (
-              <option key={c.organizacion} value={c.organizacion}>
-                {c.organizacion} ({c.cantidadAlumnos})
-              </option>
-            ))}
-          </select>
           <a
             href={`/api/productos/export${colegio ? `?organizacion=${encodeURIComponent(colegio)}` : ""}`}
             className="btn btn-primary rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"

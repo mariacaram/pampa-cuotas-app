@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlumnoBase, AlumnoComputed, Colegio } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
 import { Card, SituacionPill } from "./ui";
 import AlumnoDetail from "./AlumnoDetail";
+import ColegioCombobox from "./ColegioCombobox";
 
 export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
-  const [colegioFiltro, setColegioFiltro] = useState("");
   const [colegio, setColegio] = useState("");
 
   const [alumnos, setAlumnos] = useState<AlumnoBase[]>([]);
@@ -69,12 +69,6 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
     loadAlumno(alumnoId);
   }, [alumnoId, loadAlumno]);
 
-  const colegiosFiltrados = useMemo(() => {
-    const q = colegioFiltro.trim().toLocaleLowerCase("es");
-    if (!q) return colegios;
-    return colegios.filter((c) => c.organizacion.toLocaleLowerCase("es").includes(q));
-  }, [colegios, colegioFiltro]);
-
   return (
     <div className="space-y-6">
       <div>
@@ -90,24 +84,12 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-xs text-neutral-500">Colegio</label>
-            <input
-              value={colegioFiltro}
-              onChange={(e) => setColegioFiltro(e.target.value)}
-              placeholder="Buscar colegio…"
-              className="mt-1 mb-2 w-full rounded-lg border border-neutral-300 p-2 text-sm"
-            />
-            <select
+            <ColegioCombobox
+              colegios={colegios}
               value={colegio}
-              onChange={(e) => setColegio(e.target.value)}
-              className="w-full rounded-lg border border-neutral-300 p-2 text-sm"
-            >
-              <option value="">-- elegí un colegio ({colegios.length}) --</option>
-              {colegiosFiltrados.map((c) => (
-                <option key={c.organizacion} value={c.organizacion}>
-                  {c.organizacion} ({c.cantidadAlumnos})
-                </option>
-              ))}
-            </select>
+              onChange={setColegio}
+              className="mt-1 w-full"
+            />
           </div>
           <div>
             <label className="block text-xs text-neutral-500">Alumno</label>
