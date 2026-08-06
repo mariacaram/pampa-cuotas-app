@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registrarPago } from "@/lib/server/service";
 import { NuevoPago } from "@/lib/types";
+import { guardApi } from "@/lib/server/auth";
+import { logAuditoria } from "@/lib/server/usuarios";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  const g = await guardApi();
+  if (!g.ok) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
   let body: Partial<NuevoPago>;
   try {
     body = await req.json();
@@ -33,6 +38,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const alumno = await registrarPago(pago);
+    await logAuditoria(g.usuario?.email ?? null, "registrar_pago", pago.alumno_id, {
+      alumno: alumno.alumno,
+      colegio: alumno.organizacion,
+      monto: pago.monto,
+      forma_de_pago: pago.forma_de_pago,
+      bonificacion: pago.bonificacion,
+      interes: pago.interes,
+    });
     return NextResponse.json({ alumno });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

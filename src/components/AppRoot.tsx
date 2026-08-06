@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Colegio } from "@/lib/types";
+import { Colegio, SessionUsuario } from "@/lib/types";
 import Sidebar, { View, VIEW_ORDER } from "./Sidebar";
 import TableroView from "./TableroView";
 import PendienteView from "./PendienteView";
 import CajaView from "./CajaView";
 import ProductosView from "./ProductosView";
 import CuotasView from "./CuotasView";
+import UsuariosView from "./UsuariosView";
+import AuditoriaView from "./AuditoriaView";
 
 function isTyping(el: EventTarget | null): boolean {
   const t = el as HTMLElement | null;
@@ -17,13 +19,15 @@ function isTyping(el: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t.isContentEditable;
 }
 
-export default function AppRoot() {
+export default function AppRoot({ usuario }: { usuario: SessionUsuario }) {
   const [view, setView] = useState<View>("tablero");
   const [colegios, setColegios] = useState<Colegio[]>([]);
   const [source, setSource] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendientes, setPendientes] = useState(0);
   const reduce = useReducedMotion();
+  const esAdmin = usuario?.rol === "admin";
 
   useEffect(() => {
     let cancel = false;
@@ -46,7 +50,23 @@ export default function AppRoot() {
     };
   }, []);
 
-  // Atajos de teclado: 1-5 cambian de sección, "/" enfoca el primer buscador.
+  // Cantidad de solicitudes pendientes (para la insignia de las admins).
+  async function cargarPendientes() {
+    if (!esAdmin) return;
+    try {
+      const res = await fetch("/api/admin/usuarios");
+      if (!res.ok) return;
+      const d = await res.json();
+      setPendientes((d.usuarios as { estado: string }[]).filter((u) => u.estado === "pendiente").length);
+    } catch {
+      // ignorar
+    }
+  }
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+    cargarPendientes();
+  }, [esAdmin]);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -73,7 +93,7 @@ export default function AppRoot() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar view={view} onChange={setView} />
+      <Sidebar view={view} onChange={setView} usuario={usuario} pendientes={pendientes} />
       <div className="flex-1 px-5 py-8 sm:px-8">
         <div className="mx-auto max-w-6xl">
           {error && (
@@ -103,8 +123,14 @@ export default function AppRoot() {
                 <CajaView />
               ) : view === "productos" ? (
                 <ProductosView colegios={colegios} />
-              ) : (
+              ) : view === "cuotas" ? (
                 <CuotasView colegios={colegios} />
+              ) : view === "usuarios" && esAdmin ? (
+                <UsuariosView onChange={cargarPendientes} />
+              ) : view === "auditoria" && esAdmin ? (
+                <AuditoriaView />
+              ) : (
+                <TableroView colegios={colegios} />
               )}
             </motion.div>
           )}

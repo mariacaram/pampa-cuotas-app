@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildPendienteXlsx, buildPendientePdf } from "@/lib/server/pendienteExport";
+import { guardApi } from "@/lib/server/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,8 @@ function slug(s: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  const g = await guardApi();
+  if (!g.ok) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const organizacion = req.nextUrl.searchParams.get("organizacion") || undefined;
   const format = req.nextUrl.searchParams.get("format") === "pdf" ? "pdf" : "xlsx";
   const fecha = new Date().toISOString().slice(0, 10);

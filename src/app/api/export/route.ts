@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildExportBuffer, buildColegioReportBuffer } from "@/lib/server/exportXlsx";
+import { guardApi } from "@/lib/server/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ function slug(s: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  const g = await guardApi();
+  if (!g.ok) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const organizacion = req.nextUrl.searchParams.get("organizacion") || undefined;
   const fecha = new Date().toISOString().slice(0, 10);
   try {

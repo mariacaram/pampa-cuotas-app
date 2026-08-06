@@ -77,3 +77,10 @@ export type Colegio = {
   organizacion: string;
   cantidadAlumnos: number;
 };
+
+// Usuario logueado que se pasa del servidor a la app (null = login no configurado / abierto).
+export type SessionUsuario = {
+  email: string;
+  nombre: string | null;
+  rol: "admin" | "miembro";
+} | null;
