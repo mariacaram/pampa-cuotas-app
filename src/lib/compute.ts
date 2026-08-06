@@ -13,6 +13,54 @@ const SENA_DEFAULT = 10000;
 // Un primer pago mayor se toma como un anticipo, no como la seña.
 const SENA_TOPE = 25000;
 
+// Precios del flyer: monto de CADA cuota, por combo y cantidad de cuotas reales (Opción 1/2/3).
+// Hay dos listas porque los precios cambiaron: los pedidos desde el 1/7/2026 usan JULIO;
+// los anteriores, ABRIL.
+const FLYER_JULIO = {
+  C1: { 1: 95000, 2: 54000, 3: 43000 },
+  C2: { 1: 108000, 2: 61000, 3: 52000 },
+  C3: { 1: 132000, 2: 74000, 3: 59000 },
+  C4: { 1: 145000, 2: 78000, 3: 64000 },
+} as const;
+const FLYER_ABRIL = {
+  C1: { 1: 95000, 2: 49000, 3: 38000 },
+  C2: { 1: 108000, 2: 56000, 3: 47000 },
+  C3: { 1: 132000, 2: 69000, 3: 54000 },
+  C4: { 1: 145000, 2: 73000, 3: 59000 },
+} as const;
+type ComboId = "C1" | "C2" | "C3" | "C4";
+
+// Identifica el combo del flyer a partir de los productos del pedido:
+//   C1 = buzo + chomba          C2 = campera + chomba
+//   C3 = buzo + chomba + babucha  C4 = campera + chomba + babucha
+// Si el pedido tiene extras (camiseta, bandera, etc.) o productos incompletos, devuelve
+// null (no es un combo "limpio" del flyer) y el cálculo cae al reparto parejo.
+function comboDe(base: AlumnoBase): ComboId | null {
+  const items = [base.producto1, base.producto2, base.producto3].map((p) => (p || "").toUpperCase());
+  const has = (w: string) => items.some((x) => x.includes(w));
+  if (has("CAMISETA") || has("BANDERA") || has("EXTRA") || has("CHALECO") || has("DEPORTE")) {
+    return null;
+  }
+  const buzo = has("BUZO");
+  const campera = has("CAMPERA");
+  const chomba = has("CHOMBA");
+  const babucha = has("BABUCHA");
+  if (buzo && chomba && !campera && !babucha) return "C1";
+  if (campera && chomba && !buzo && !babucha) return "C2";
+  if (buzo && chomba && babucha && !campera) return "C3";
+  if (campera && chomba && babucha && !buzo) return "C4";
+  return null;
+}
+
+// Monto de cuota del flyer para el combo/período/nº de cuotas, o null si no aplica.
+// Período: pedidos con fecha_orden >= 2026-07-01 usan JULIO; anteriores, ABRIL.
+function cuotaFlyer(base: AlumnoBase, nCuotas: number): number | null {
+  const combo = comboDe(base);
+  if (!combo || nCuotas < 1 || nCuotas > 3) return null;
+  const esJulio = !!base.fecha_orden && base.fecha_orden >= "2026-07-01";
+  return (esJulio ? FLYER_JULIO : FLYER_ABRIL)[combo][nCuotas as 1 | 2 | 3];
+}
+
 // La seña es el primer pago del pedido. Normalmente 10.000, pero puede ser mayor si el
 // pedido tenía un extra (ej. camiseta). Solo la deducimos del primer pago cuando es un
 // monto "chico" (<= SENA_TOPE); un primer pago grande es un anticipo, no la seña.
@@ -27,13 +75,14 @@ function detectarSena(base: AlumnoBase): number {
   return SENA_DEFAULT;
 }
 
-// Monto de cada cuota regular (la que se muestra en el plan de pagos), según el flyer.
-//  - plan_cuotas <= 1  -> pago al contado: la "cuota" es el total.
-//  - plan_cuotas >= 5  -> plan más largo que el flyer: todas las cuotas iguales (total / n).
-//  - plan_cuotas 2-4   -> promo del flyer: (total - seña) repartido entre las cuotas reales.
-// OJO: en la planilla, plan_cuotas cuenta la seña como la 1ª cuota, así que las cuotas
-// reales (después de la seña) son plan_cuotas - 1. El total ya trae incorporado el precio
-// del combo y el recargo de abril/julio, por eso no hace falta identificarlos acá.
+// Monto de la cuota regular (la que se repite en el plan). Prioriza el precio del flyer:
+//  - plan_cuotas <= 1  -> contado: la "cuota" es el total.
+//  - plan_cuotas >= 5  -> plan más largo que el flyer: cuotas iguales (total / n).
+//  - plan_cuotas 2-4   -> si el combo es identificable y el total alcanza, se usa la cuota
+//    EXACTA del flyer (el extra que sobra se cobra entero en la última cuota, nunca repartido).
+//    Si no hay combo (extras/incompletos) o el total no alcanza, se reparte lo que queda tras
+//    la seña en partes iguales (fallback seguro que siempre cierra con el total).
+// OJO: plan_cuotas cuenta la seña como 1ª cuota, así que las cuotas reales son plan_cuotas - 1.
 function montoCuotaRegular(base: AlumnoBase): number {
   const total = base.total_asignado;
   if (total <= 0) return 0;
@@ -41,7 +90,13 @@ function montoCuotaRegular(base: AlumnoBase): number {
   if (plan <= 1) return round2(total);
   if (plan >= 5) return round2(total / plan);
   const sena = detectarSena(base);
-  return round2((total - sena) / (plan - 1));
+  const nReales = plan - 1;
+  const fc = cuotaFlyer(base, nReales);
+  // Usamos el flyer solo si el total alcanza (extra >= 0); si no, repartimos parejo.
+  if (fc !== null && total >= sena + fc * nReales) {
+    return fc;
+  }
+  return round2((total - sena) / nReales);
 }
 
 // Recalcula los totales de un alumno a partir de sus datos base + los pagos nuevos.
@@ -127,17 +182,26 @@ function buildCuotasPlan(
     : null;
   const ordenValida = d && !isNaN(d.getTime());
   const hoy = Date.now();
+  const sena = detectarSena(base);
+  const total = base.total_asignado;
   for (let k = 1; k <= cuotas; k++) {
     const venc = ordenValida ? vencimientoCuota(d as Date, k) : null;
     let estado: CuotaPlan["estado"];
     if (k <= cuotasPagadas) estado = "pagada";
     else if (venc && venc.getTime() <= hoy) estado = "vencida";
     else estado = "pendiente";
-    // La 1ª cuota es la seña (más chica): total − cuota_regular × (cuotas − 1).
-    // Así las filas suman EXACTO el total. Para contado (1 cuota) o planes largos
-    // (cuotas iguales) el cálculo da lo mismo que montoCuota.
-    const monto =
-      k === 1 ? Math.max(0, round2(base.total_asignado - montoCuota * (cuotas - 1))) : montoCuota;
+    // Reparto del plan (el extra NUNCA se reparte: va entero en la última cuota):
+    //  - contado (1 cuota): la cuota es el total.
+    //  - plan largo (>=5): todas iguales (la última absorbe el redondeo).
+    //  - plan 2-4: 1ª = seña; intermedias = cuota del flyer (montoCuota); última = lo que
+    //    resta (la cuota del flyer + el extra). Siempre suman EXACTO el total.
+    let monto: number;
+    if (cuotas <= 1) monto = total;
+    else if (base.plan_cuotas >= 5) monto = k < cuotas ? montoCuota : round2(total - montoCuota * (cuotas - 1));
+    else if (k === 1) monto = sena;
+    else if (k === cuotas) monto = round2(total - sena - montoCuota * (cuotas - 2));
+    else monto = montoCuota;
+    monto = Math.max(0, round2(monto));
     plan.push({
       numero: k,
       vencimiento: venc ? isoDate(venc) : "",
