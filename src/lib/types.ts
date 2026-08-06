@@ -61,6 +61,13 @@ export type NuevaVenta = {
   plan_cuotas: number;
   forma_de_pago: string;
   fecha_orden: string;
+  // Productos de la venta (opcional): alimentan "Productos estrella".
+  producto1?: string;
+  talle1?: string;
+  producto2?: string;
+  talle2?: string;
+  producto3?: string;
+  talle3?: string;
 };
 
 // Una cuota del plan de pagos, con su vencimiento y estado.

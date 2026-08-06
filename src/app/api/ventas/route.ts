@@ -37,6 +37,12 @@ export async function POST(req: NextRequest) {
     plan_cuotas: plan,
     forma_de_pago: String(body.forma_de_pago || "Efectivo"),
     fecha_orden: body.fecha_orden || new Date().toISOString().slice(0, 10),
+    producto1: String(body.producto1 || "").trim(),
+    talle1: String(body.talle1 || "").trim(),
+    producto2: String(body.producto2 || "").trim(),
+    talle2: String(body.talle2 || "").trim(),
+    producto3: String(body.producto3 || "").trim(),
+    talle3: String(body.talle3 || "").trim(),
   };
 
   try {

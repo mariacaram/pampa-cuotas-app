@@ -134,6 +134,13 @@ export class SupabaseRepo implements Repo {
       saldo_base: venta.total_asignado,
       situacion_base: "SIN PAGOS",
       fecha_creacion_orden: venta.fecha_orden,
+      productos: [venta.producto1, venta.producto2, venta.producto3].map((p) => (p ?? "").trim()).filter(Boolean).join(" | "),
+      producto1: (venta.producto1 ?? "").trim(),
+      talle1: (venta.talle1 ?? "").trim(),
+      producto2: (venta.producto2 ?? "").trim(),
+      talle2: (venta.talle2 ?? "").trim(),
+      producto3: (venta.producto3 ?? "").trim(),
+      talle3: (venta.talle3 ?? "").trim(),
     };
     const { error } = await this.db.from("alumnos").insert(row);
     if (error) throw error;
