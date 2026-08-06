@@ -6,6 +6,7 @@ import { formatMoney } from "@/lib/format";
 import { Card, SituacionPill } from "./ui";
 import AlumnoDetail from "./AlumnoDetail";
 import ColegioCombobox from "./ColegioCombobox";
+import AlumnoCombobox from "./AlumnoCombobox";
 
 export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
   const [colegio, setColegio] = useState("");
@@ -93,24 +94,14 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
           </div>
           <div>
             <label className="block text-xs text-neutral-500">Alumno</label>
-            <select
+            <AlumnoCombobox
+              alumnos={alumnos}
               value={alumnoId}
-              onChange={(e) => setAlumnoId(e.target.value)}
-              disabled={!colegio || loadingAlumnos}
-              className="mt-1 w-full rounded-lg border border-neutral-300 p-2 text-sm disabled:bg-neutral-50"
-            >
-              {!colegio ? (
-                <option value="">Primero elegí un colegio</option>
-              ) : loadingAlumnos ? (
-                <option value="">Cargando alumnos…</option>
-              ) : (
-                alumnos.map((a) => (
-                  <option key={a.alumno_id} value={a.alumno_id}>
-                    {a.alumno}
-                  </option>
-                ))
-              )}
-            </select>
+              onChange={setAlumnoId}
+              disabled={!colegio}
+              loading={loadingAlumnos}
+              className="mt-1 w-full"
+            />
           </div>
         </div>
       </Card>
