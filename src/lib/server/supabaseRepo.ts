@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { AlumnoBase, Colegio, NuevoPago, Pago } from "@/lib/types";
+import { AlumnoBase, Colegio, NuevaVenta, NuevoPago, Pago } from "@/lib/types";
 import { Repo } from "./repo";
 
 // Cache en memoria (por instancia del servidor). Los datos base cambian poco (reimport
@@ -101,5 +101,43 @@ export class SupabaseRepo implements Repo {
     if (error) throw error;
     pagosCache = null; // invalidar: el próximo cálculo incluye el pago nuevo
     return data as Pago;
+  }
+
+  async getPago(pagoId: number | string): Promise<Pago | null> {
+    const rows = await this.listAllPagos();
+    return rows.find((p) => String(p.id) === String(pagoId)) ?? null;
+  }
+
+  async deletePago(pagoId: number | string): Promise<void> {
+    const { error } = await this.db.from("pagos").delete().eq("id", pagoId);
+    if (error) throw error;
+    pagosCache = null; // invalidar: el pago ya no está
+  }
+
+  async addAlumno(venta: NuevaVenta): Promise<AlumnoBase> {
+    const row: AlumnoBase = {
+      alumno_id: crypto.randomUUID(),
+      alumno: venta.alumno.trim(),
+      nombre_cliente: venta.nombre_cliente?.trim() || "",
+      organizacion: venta.organizacion.trim(),
+      // Marcador de origen: las ventas cargadas desde la app llevan nro_orden "APP-…"
+      // y estado_orden "APP" para que una reimportación del Excel NO las pise.
+      nro_orden: `APP-${Date.now()}`,
+      estado_orden: "APP",
+      fecha_orden: venta.fecha_orden,
+      forma_de_pago: venta.forma_de_pago,
+      plan_cuotas: venta.plan_cuotas,
+      cuotas_generadas: venta.plan_cuotas,
+      cuotas_pagadas_base: 0,
+      total_asignado: venta.total_asignado,
+      monto_pagado_base: 0,
+      saldo_base: venta.total_asignado,
+      situacion_base: "SIN PAGOS",
+      fecha_creacion_orden: venta.fecha_orden,
+    };
+    const { error } = await this.db.from("alumnos").insert(row);
+    if (error) throw error;
+    alumnosCache = null; // invalidar: aparece el alumno nuevo
+    return row;
   }
 }

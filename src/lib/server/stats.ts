@@ -142,6 +142,171 @@ export async function getPendiente(organizacion?: string): Promise<Pendiente> {
   };
 }
 
+// --- Proyección de cobranza mes a mes (detalle del saldo pendiente) ---
+export type ProyeccionMes = { mes: string; monto: number; cuotas: number };
+export type Proyeccion = {
+  scope: string;
+  total: number;                              // ≈ saldo pendiente total
+  vencido: { monto: number; cuotas: number }; // cuotas ya vencidas e impagas
+  meses: ProyeccionMes[];                     // cuotas futuras agrupadas por mes
+};
+
+// Una cuota impaga concreta (para el detalle "qué clientes componen cada mes").
+export type ProyeccionFila = {
+  grupoKey: string; // "0000-00" para vencido, o "YYYY-MM"
+  grupo: string;    // "Vencido" o "YYYY-MM"
+  colegio: string;
+  alumno: string;
+  cuota: number;
+  vencimiento: string;
+  monto: number;
+};
+
+// Modo de vista/cobranza:
+//  - "todos":    todo el saldo pendiente.
+//  - "atrasado": solo cuotas ya vencidas e impagas.
+//  - "esteMes":  cuotas que vencen este mes y NO están vencidas (al día).
+export type CobranzaModo = "todos" | "atrasado" | "esteMes";
+
+export function mesActualKey(): string {
+  return new Date().toISOString().slice(0, 7); // "YYYY-MM"
+}
+
+export function filtrarFilasPorModo(filas: ProyeccionFila[], modo: CobranzaModo): ProyeccionFila[] {
+  if (modo === "atrasado") return filas.filter((f) => f.grupoKey === "0000-00");
+  if (modo === "esteMes") return filas.filter((f) => f.grupoKey === mesActualKey());
+  return filas;
+}
+
+// Reparte el saldo de cada alumno entre sus cuotas impagas (una fila por cuota).
+async function proyeccionFilas(organizacion?: string): Promise<ProyeccionFila[]> {
+  const computed = await getAlumnosComputed(organizacion);
+  const filas: ProyeccionFila[] = [];
+  for (const a of computed) {
+    if (a.saldo <= 0) continue;
+    let restante = a.saldo;
+    for (const c of a.cuotasPlan) {
+      if (c.estado === "pagada" || restante <= 0) continue;
+      const monto = Math.min(c.monto, restante);
+      restante = round2(restante - monto);
+      const vencida = c.estado === "vencida" || !c.vencimiento;
+      filas.push({
+        grupoKey: vencida ? "0000-00" : c.vencimiento.slice(0, 7),
+        grupo: vencida ? "Vencido" : c.vencimiento.slice(0, 7),
+        colegio: a.organizacion,
+        alumno: a.alumno,
+        cuota: c.numero,
+        vencimiento: c.vencimiento,
+        monto: round2(monto),
+      });
+    }
+    if (restante > 0.5) {
+      filas.push({
+        grupoKey: "0000-00", grupo: "Vencido", colegio: a.organizacion,
+        alumno: a.alumno, cuota: 0, vencimiento: "", monto: round2(restante),
+      });
+    }
+  }
+  return filas;
+}
+
+function summarize(filas: ProyeccionFila[], scope: string): Proyeccion {
+  let total = 0;
+  let vencidoMonto = 0;
+  let vencidoCuotas = 0;
+  const mesesMap = new Map<string, { monto: number; cuotas: number }>();
+  for (const f of filas) {
+    total += f.monto;
+    if (f.grupoKey === "0000-00") {
+      vencidoMonto += f.monto;
+      vencidoCuotas += 1;
+    } else {
+      const b = mesesMap.get(f.grupoKey) ?? { monto: 0, cuotas: 0 };
+      b.monto += f.monto;
+      b.cuotas += 1;
+      mesesMap.set(f.grupoKey, b);
+    }
+  }
+  const meses = [...mesesMap.entries()]
+    .map(([mes, v]) => ({ mes, monto: round2(v.monto), cuotas: v.cuotas }))
+    .sort((a, b) => a.mes.localeCompare(b.mes));
+  return { scope, total: round2(total), vencido: { monto: round2(vencidoMonto), cuotas: vencidoCuotas }, meses };
+}
+
+export async function getProyeccionMensual(organizacion?: string): Promise<Proyeccion> {
+  const filas = await proyeccionFilas(organizacion);
+  return summarize(filas, organizacion || "Todos los colegios");
+}
+
+// Detalle (para exportar), opcionalmente filtrado por modo.
+export async function getProyeccionDetalle(
+  organizacion?: string,
+  modo: CobranzaModo = "todos"
+): Promise<{ proyeccion: Proyeccion; filas: ProyeccionFila[] }> {
+  const all = await proyeccionFilas(organizacion);
+  const filas = filtrarFilasPorModo(all, modo);
+  return { proyeccion: summarize(filas, organizacion || "Todos los colegios"), filas };
+}
+
+// --- Cobranza agrupada por colegio (y por alumno si se filtra), según el modo ---
+export type CobranzaColegio = { organizacion: string; alumnos: number; cuotas: number; monto: number };
+export type CobranzaAlumno = { alumno: string; cuotas: number; monto: number; vencimiento: string };
+export type Cobranza = {
+  scope: string;
+  modo: CobranzaModo;
+  total: number;
+  cuotas: number;
+  alumnos: number;
+  porColegio: CobranzaColegio[];
+  alumnosDetalle: CobranzaAlumno[]; // solo cuando se filtra por un colegio
+};
+
+export async function getCobranza(modo: CobranzaModo, organizacion?: string): Promise<Cobranza> {
+  const all = await proyeccionFilas(organizacion);
+  const sel = filtrarFilasPorModo(all, modo);
+
+  const colMap = new Map<string, { alumnos: Set<string>; cuotas: number; monto: number }>();
+  const alumnosGlobal = new Set<string>();
+  let total = 0;
+  for (const f of sel) {
+    total += f.monto;
+    alumnosGlobal.add(f.colegio + "|" + f.alumno);
+    const c = colMap.get(f.colegio) ?? { alumnos: new Set<string>(), cuotas: 0, monto: 0 };
+    c.alumnos.add(f.alumno);
+    c.cuotas += 1;
+    c.monto += f.monto;
+    colMap.set(f.colegio, c);
+  }
+  const porColegio = [...colMap.entries()]
+    .map(([organizacion, c]) => ({ organizacion, alumnos: c.alumnos.size, cuotas: c.cuotas, monto: round2(c.monto) }))
+    .sort((a, b) => b.monto - a.monto);
+
+  let alumnosDetalle: CobranzaAlumno[] = [];
+  if (organizacion) {
+    const aMap = new Map<string, CobranzaAlumno>();
+    for (const f of sel) {
+      const a = aMap.get(f.alumno) ?? { alumno: f.alumno, cuotas: 0, monto: 0, vencimiento: f.vencimiento };
+      a.cuotas += 1;
+      a.monto += f.monto;
+      if (f.vencimiento && (!a.vencimiento || f.vencimiento < a.vencimiento)) a.vencimiento = f.vencimiento;
+      aMap.set(f.alumno, a);
+    }
+    alumnosDetalle = [...aMap.values()]
+      .map((a) => ({ ...a, monto: round2(a.monto) }))
+      .sort((x, y) => y.monto - x.monto);
+  }
+
+  return {
+    scope: organizacion || "Todos los colegios",
+    modo,
+    total: round2(total),
+    cuotas: sel.length,
+    alumnos: alumnosGlobal.size,
+    porColegio,
+    alumnosDetalle,
+  };
+}
+
 export async function getStats(organizacion?: string): Promise<Stats> {
   const computed = await getAlumnosComputed(organizacion);
 

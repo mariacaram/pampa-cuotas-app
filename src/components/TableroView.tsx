@@ -9,6 +9,14 @@ import { Reveal, Stagger, StaggerItem } from "./motion/Reveal";
 import ColegioCombobox from "./ColegioCombobox";
 import Donut from "./charts/Donut";
 import BarList from "./charts/BarList";
+import ProyeccionModal from "./ProyeccionModal";
+
+type Proyeccion = {
+  scope: string;
+  total: number;
+  vencido: { monto: number; cuotas: number };
+  meses: { mes: string; monto: number; cuotas: number }[];
+};
 
 type Stats = {
   scope: string;
@@ -27,6 +35,29 @@ export default function TableroView({ colegios }: { colegios: Colegio[] }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Modal de proyección mensual (detalle del saldo pendiente).
+  const [proyOpen, setProyOpen] = useState(false);
+  const [proy, setProy] = useState<Proyeccion | null>(null);
+  const [proyLoading, setProyLoading] = useState(false);
+
+  async function abrirProyeccion() {
+    setProyOpen(true);
+    setProy(null);
+    setProyLoading(true);
+    try {
+      const url = colegio
+        ? `/api/proyeccion?organizacion=${encodeURIComponent(colegio)}`
+        : "/api/proyeccion";
+      const res = await fetch(url);
+      const data = await res.json();
+      if (res.ok) setProy(data.proyeccion);
+    } catch {
+      // se muestra el estado de carga; el usuario puede cerrar
+    } finally {
+      setProyLoading(false);
+    }
+  }
 
   useEffect(() => {
     let cancel = false;
@@ -69,15 +100,22 @@ export default function TableroView({ colegios }: { colegios: Colegio[] }) {
               colegios={colegios}
               value={colegio}
               onChange={setColegio}
-              className="mt-1 w-72"
+              className="mt-1 w-full sm:w-72"
             />
           </div>
-          {colegio && (
+          {colegio ? (
             <a
               href={`/api/export?organizacion=${encodeURIComponent(colegio)}`}
               className="btn btn-primary rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
             >
               ⬇ Reporte del colegio
+            </a>
+          ) : (
+            <a
+              href="/api/export"
+              className="btn btn-primary rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              ⬇ Descargar reporte completo
             </a>
           )}
         </div>
@@ -106,7 +144,12 @@ export default function TableroView({ colegios }: { colegios: Colegio[] }) {
               />
             </StaggerItem>
             <StaggerItem>
-              <StatCard label="Saldo pendiente" animateTo={stats.saldoPendiente} format={formatMoney} />
+              <StatCard
+                label="Saldo pendiente"
+                animateTo={stats.saldoPendiente}
+                format={formatMoney}
+                onClick={abrirProyeccion}
+              />
             </StaggerItem>
           </Stagger>
 
@@ -171,6 +214,15 @@ export default function TableroView({ colegios }: { colegios: Colegio[] }) {
           )}
         </>
       ) : null}
+
+      {proyOpen && (
+        <ProyeccionModal
+          proyeccion={proy}
+          loading={proyLoading}
+          organizacion={colegio}
+          onClose={() => setProyOpen(false)}
+        />
+      )}
     </div>
   );
 }

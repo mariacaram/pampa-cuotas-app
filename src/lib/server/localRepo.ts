@@ -1,7 +1,7 @@
 import "server-only";
 import fs from "node:fs";
 import path from "node:path";
-import { AlumnoBase, Colegio, NuevoPago, Pago } from "@/lib/types";
+import { AlumnoBase, Colegio, NuevaVenta, NuevoPago, Pago } from "@/lib/types";
 import { Repo } from "./repo";
 
 // Implementación para desarrollo/pruebas sin base de datos.
@@ -36,6 +36,12 @@ function loadPagos(): Pago[] {
 function savePagos(pagos: Pago[]): void {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(PAGOS_FILE, JSON.stringify(pagos, null, 2), "utf-8");
+}
+
+function saveAlumnos(alumnos: AlumnoBase[]): void {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(ALUMNOS_FILE, JSON.stringify(alumnos, null, 2), "utf-8");
+  alumnosCache = alumnos;
 }
 
 export class LocalFileRepo implements Repo {
@@ -92,5 +98,38 @@ export class LocalFileRepo implements Repo {
     pagos.push(pago);
     savePagos(pagos);
     return pago;
+  }
+
+  async getPago(pagoId: number | string): Promise<Pago | null> {
+    return loadPagos().find((p) => String(p.id) === String(pagoId)) ?? null;
+  }
+
+  async deletePago(pagoId: number | string): Promise<void> {
+    const pagos = loadPagos().filter((p) => String(p.id) !== String(pagoId));
+    savePagos(pagos);
+  }
+
+  async addAlumno(venta: NuevaVenta): Promise<AlumnoBase> {
+    const row: AlumnoBase = {
+      alumno_id: crypto.randomUUID(),
+      alumno: venta.alumno.trim(),
+      nombre_cliente: venta.nombre_cliente?.trim() || "",
+      organizacion: venta.organizacion.trim(),
+      nro_orden: `APP-${Date.now()}`,
+      estado_orden: "APP",
+      fecha_orden: venta.fecha_orden,
+      forma_de_pago: venta.forma_de_pago,
+      plan_cuotas: venta.plan_cuotas,
+      cuotas_generadas: venta.plan_cuotas,
+      cuotas_pagadas_base: 0,
+      total_asignado: venta.total_asignado,
+      monto_pagado_base: 0,
+      saldo_base: venta.total_asignado,
+      situacion_base: "SIN PAGOS",
+      fecha_creacion_orden: venta.fecha_orden,
+    };
+    const alumnos = [...loadAlumnos(), row];
+    saveAlumnos(alumnos);
+    return row;
   }
 }

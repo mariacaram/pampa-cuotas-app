@@ -1,5 +1,5 @@
 import "server-only";
-import { AlumnoBase, Colegio, NuevoPago, Pago } from "@/lib/types";
+import { AlumnoBase, Colegio, NuevaVenta, NuevoPago, Pago } from "@/lib/types";
 
 // Contrato del repositorio de datos. Dos implementaciones:
 //  - SupabaseRepo: base de datos en la nube (producción).
@@ -10,6 +10,9 @@ export interface Repo {
   getAlumnoBase(alumnoId: string): Promise<AlumnoBase | null>;
   listPagos(alumnoId: string): Promise<Pago[]>;
   addPago(pago: NuevoPago): Promise<Pago>;
+  getPago(pagoId: number | string): Promise<Pago | null>;
+  deletePago(pagoId: number | string): Promise<void>;
+  addAlumno(venta: NuevaVenta): Promise<AlumnoBase>;
   listAllAlumnos(): Promise<AlumnoBase[]>;
   listAllPagos(): Promise<Pago[]>;
   source: "supabase" | "local";

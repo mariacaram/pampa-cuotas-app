@@ -1,4 +1,8 @@
-import { AlumnoBase, AlumnoComputed, Pago, Situacion } from "./types";
+import { AlumnoBase, AlumnoComputed, CuotaPlan, Pago, Situacion } from "./types";
+
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -84,6 +88,9 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
     }
   }
 
+  // Plan de cuotas mes por mes: fecha de vencimiento + estado (pagada/vencida/pendiente).
+  const cuotasPlan = buildCuotasPlan(base, cuotas, montoCuota, cuotasPagadas);
+
   return {
     ...base,
     pagos,
@@ -100,7 +107,45 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
     atrasado,
     montoVencido,
     proximoVencimiento,
+    cuotasPlan,
   };
+}
+
+// Arma el detalle de cada cuota: número, vencimiento y estado.
+//  - pagada:   ya cubierta (numero <= cuotasPagadas).
+//  - vencida:  no pagada y su vencimiento ya pasó.
+//  - pendiente: no pagada y todavía no vence.
+function buildCuotasPlan(
+  base: AlumnoBase,
+  cuotas: number,
+  montoCuota: number,
+  cuotasPagadas: number
+): CuotaPlan[] {
+  const plan: CuotaPlan[] = [];
+  const d = base.fecha_orden
+    ? new Date(base.fecha_orden.length <= 10 ? base.fecha_orden + "T00:00:00" : base.fecha_orden)
+    : null;
+  const ordenValida = d && !isNaN(d.getTime());
+  const hoy = Date.now();
+  for (let k = 1; k <= cuotas; k++) {
+    const venc = ordenValida ? vencimientoCuota(d as Date, k) : null;
+    let estado: CuotaPlan["estado"];
+    if (k <= cuotasPagadas) estado = "pagada";
+    else if (venc && venc.getTime() <= hoy) estado = "vencida";
+    else estado = "pendiente";
+    // La 1ª cuota es la seña (más chica): total − cuota_regular × (cuotas − 1).
+    // Así las filas suman EXACTO el total. Para contado (1 cuota) o planes largos
+    // (cuotas iguales) el cálculo da lo mismo que montoCuota.
+    const monto =
+      k === 1 ? Math.max(0, round2(base.total_asignado - montoCuota * (cuotas - 1))) : montoCuota;
+    plan.push({
+      numero: k,
+      vencimiento: venc ? isoDate(venc) : "",
+      monto,
+      estado,
+    });
+  }
+  return plan;
 }
 
 // Fecha de vencimiento de la cuota k (1-based):

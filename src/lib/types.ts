@@ -52,6 +52,25 @@ export type NuevoPago = {
   nota: string;
 };
 
+// Alta de una venta nueva cargada desde la app (nuevo alumno/orden).
+export type NuevaVenta = {
+  alumno: string;
+  organizacion: string;
+  nombre_cliente?: string;
+  total_asignado: number;
+  plan_cuotas: number;
+  forma_de_pago: string;
+  fecha_orden: string;
+};
+
+// Una cuota del plan de pagos, con su vencimiento y estado.
+export type CuotaPlan = {
+  numero: number;
+  vencimiento: string; // fecha ISO (YYYY-MM-DD)
+  monto: number;
+  estado: "pagada" | "pendiente" | "vencida";
+};
+
 export type Situacion = "PAGO TOTAL" | "PAGO PARCIAL" | "SIN PAGOS";
 
 // Alumno con los totales recalculados en vivo (base + pagos nuevos).
@@ -71,6 +90,7 @@ export type AlumnoComputed = AlumnoBase & {
   montoVencido: number;
   proximoVencimiento: string; // fecha ISO de la próxima cuota impaga, "" si está saldado
   bonificacionTotal: number;
+  cuotasPlan: CuotaPlan[]; // plan de cuotas mes por mes (vencimiento + estado)
 };
 
 export type Colegio = {

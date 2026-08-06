@@ -66,7 +66,7 @@ export default function ProductosView({ colegios }: { colegios: Colegio[] }) {
               colegios={colegios}
               value={colegio}
               onChange={setColegio}
-              className="mt-1 w-72"
+              className="mt-1 w-full sm:w-72"
             />
           </div>
           <a
@@ -186,7 +186,10 @@ export default function ProductosView({ colegios }: { colegios: Colegio[] }) {
           </Card>
 
           <p className="text-xs text-neutral-400">
-            La facturación por producto es orientativa: reparte el total de cada pedido entre las
+            El <b>% de pedidos</b> indica en qué porcentaje de los pedidos aparece esa prenda (ej.:
+            93% = 9 de cada 10 pedidos llevan una chomba). No suman 100% porque un mismo pedido
+            puede incluir varias prendas (los combos cuentan para cada una). La{" "}
+            <b>facturación por producto</b> es orientativa: reparte el total de cada pedido entre las
             prendas que lo componen.
           </p>
         </>

@@ -26,6 +26,7 @@ export function StatCard({
   accent = false,
   animateTo,
   format,
+  onClick,
 }: {
   label: string;
   value?: string;
@@ -33,10 +34,15 @@ export function StatCard({
   accent?: boolean;
   animateTo?: number;
   format?: (n: number) => string;
+  onClick?: () => void;
 }) {
   return (
     <div
-      className={`card card-interactive p-5 ${
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => (e.key === "Enter" || e.key === " ") && onClick() : undefined}
+      className={`card card-interactive p-5 ${onClick ? "cursor-pointer" : ""} ${
         accent ? "border-transparent bg-emerald-700 text-white" : "bg-white"
       }`}
       style={
@@ -57,6 +63,11 @@ export function StatCard({
       </p>
       {sub && (
         <p className={`mt-1 text-xs ${accent ? "text-emerald-100" : "text-neutral-400"}`}>{sub}</p>
+      )}
+      {onClick && (
+        <p className={`mt-1 text-xs font-medium ${accent ? "text-emerald-100" : "text-emerald-700"}`}>
+          Ver por mes ›
+        </p>
       )}
     </div>
   );
