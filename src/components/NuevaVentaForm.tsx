@@ -44,6 +44,7 @@ export default function NuevaVentaForm({ colegios, onCreada, onCancel }: Props) 
   const [pagadores, setPagadores] = useState("");
   const [total, setTotal] = useState("");
   const [plan, setPlan] = useState("1");
+  const [sena, setSena] = useState("");
   const [formaDePago, setFormaDePago] = useState(FORMAS_DE_PAGO[0]);
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [prods, setProds] = useState([
@@ -112,6 +113,7 @@ export default function NuevaVentaForm({ colegios, onCreada, onCancel }: Props) 
     setPagadores("");
     setTotal("");
     setPlan("1");
+    setSena("");
     setProds([
       { producto: "", talle: "" },
       { producto: "", talle: "" },
@@ -137,6 +139,7 @@ export default function NuevaVentaForm({ colegios, onCreada, onCancel }: Props) 
           nombre_cliente: pagadores,
           total_asignado: totalNum,
           plan_cuotas: Math.max(1, Math.round(Number(plan) || 1)),
+          sena: Number(sena) || 0,
           forma_de_pago: formaDePago,
           fecha_orden: fecha,
           producto1: prods[0].producto,
@@ -160,7 +163,8 @@ export default function NuevaVentaForm({ colegios, onCreada, onCancel }: Props) 
 
   const totalNum = Number(total) || 0;
   const planNum = Math.max(1, Math.round(Number(plan) || 1));
-  const cuotaAprox = planNum > 0 ? Math.round(totalNum / planNum) : 0;
+  const senaNum = Number(sena) || 0;
+  const restoAprox = planNum >= 2 ? Math.round((totalNum - senaNum) / (planNum - 1)) : totalNum;
 
   return (
     <Card>
@@ -316,6 +320,12 @@ export default function NuevaVentaForm({ colegios, onCreada, onCancel }: Props) 
               <label className="block text-xs text-neutral-500">Plan de cuotas</label>
               <input type="number" min={1} step="1" value={plan} onChange={(e) => setPlan(e.target.value)} className="mt-1 w-full rounded-md border border-neutral-300 p-2 text-sm" />
             </div>
+            {planNum >= 2 && (
+              <div>
+                <label className="block text-xs text-neutral-500">Seña — 1ª cuota, ya cobrada ($)</label>
+                <input type="number" min={0} step="any" value={sena} onChange={(e) => setSena(e.target.value)} className="mt-1 w-full rounded-md border border-neutral-300 p-2 text-sm" placeholder="Ej.: 10000 (dejalo vacío si no hubo seña)" />
+              </div>
+            )}
             <div>
               <label className="block text-xs text-neutral-500">Forma de pago</label>
               <select value={formaDePago} onChange={(e) => setFormaDePago(e.target.value)} className="mt-1 w-full rounded-md border border-neutral-300 p-2 text-sm">
@@ -354,9 +364,16 @@ export default function NuevaVentaForm({ colegios, onCreada, onCancel }: Props) 
 
             {totalNum > 0 && (
               <p className="text-xs text-neutral-500 sm:col-span-2">
-                {planNum} cuota{planNum > 1 ? "s" : ""} — la 1ª (seña) más chica y el resto de aprox.{" "}
-                <span className="font-semibold text-neutral-800">{formatMoney(cuotaAprox)}</span>. 1ª vence a
-                fin de mes, las siguientes el día 15.
+                {planNum >= 2 ? (
+                  <>
+                    Seña: <b className="text-neutral-800">{formatMoney(senaNum)}</b> · {planNum - 1} cuota
+                    {planNum - 1 > 1 ? "s" : ""} de aprox.{" "}
+                    <b className="text-neutral-800">{formatMoney(restoAprox)}</b> · Total {formatMoney(totalNum)}.
+                  </>
+                ) : (
+                  <>Pago único: <b className="text-neutral-800">{formatMoney(totalNum)}</b>.</>
+                )}{" "}
+                La 1ª vence a fin de mes, las siguientes el día 15.
               </p>
             )}
 

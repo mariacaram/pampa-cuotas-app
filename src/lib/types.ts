@@ -61,6 +61,8 @@ export type NuevaVenta = {
   plan_cuotas: number;
   forma_de_pago: string;
   fecha_orden: string;
+  // Seña (1ª cuota) ya cobrada al hacer la venta. Editable; si es 0, sin seña.
+  sena?: number;
   // Productos de la venta (opcional): alimentan "Productos estrella".
   producto1?: string;
   talle1?: string;

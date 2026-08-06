@@ -110,6 +110,10 @@ export class LocalFileRepo implements Repo {
   }
 
   async addAlumno(venta: NuevaVenta): Promise<AlumnoBase> {
+    const sena = (venta.sena ?? 0) > 0 && venta.plan_cuotas >= 2
+      ? Math.min(venta.sena!, venta.total_asignado)
+      : 0;
+    const saldoBase = Math.round((venta.total_asignado - sena) * 100) / 100;
     const row: AlumnoBase = {
       alumno_id: crypto.randomUUID(),
       alumno: venta.alumno.trim(),
@@ -121,11 +125,11 @@ export class LocalFileRepo implements Repo {
       forma_de_pago: venta.forma_de_pago,
       plan_cuotas: venta.plan_cuotas,
       cuotas_generadas: venta.plan_cuotas,
-      cuotas_pagadas_base: 0,
+      cuotas_pagadas_base: sena > 0 ? 1 : 0,
       total_asignado: venta.total_asignado,
-      monto_pagado_base: 0,
-      saldo_base: venta.total_asignado,
-      situacion_base: "SIN PAGOS",
+      monto_pagado_base: sena,
+      saldo_base: saldoBase,
+      situacion_base: saldoBase <= 0 ? "PAGO TOTAL" : sena > 0 ? "PAGO PARCIAL" : "SIN PAGOS",
       fecha_creacion_orden: venta.fecha_orden,
       productos: [venta.producto1, venta.producto2, venta.producto3].map((p) => (p ?? "").trim()).filter(Boolean).join(" | "),
       producto1: (venta.producto1 ?? "").trim(),

@@ -17,12 +17,12 @@ const SENA_TOPE = 25000;
 // pedido tenía un extra (ej. camiseta). Solo la deducimos del primer pago cuando es un
 // monto "chico" (<= SENA_TOPE); un primer pago grande es un anticipo, no la seña.
 function detectarSena(base: AlumnoBase): number {
-  if (
-    base.cuotas_pagadas_base === 1 &&
-    base.monto_pagado_base > 0 &&
-    base.monto_pagado_base <= SENA_TOPE
-  ) {
-    return base.monto_pagado_base;
+  // Ventas cargadas desde la app (nro_orden "APP-…"): la seña la fijó el usuario,
+  // así que la tomamos exacta (sin el tope, que es solo para datos importados).
+  const esApp = (base.nro_orden || "").startsWith("APP-");
+  if (base.cuotas_pagadas_base === 1 && base.monto_pagado_base > 0) {
+    if (esApp) return base.monto_pagado_base;
+    if (base.monto_pagado_base <= SENA_TOPE) return base.monto_pagado_base;
   }
   return SENA_DEFAULT;
 }

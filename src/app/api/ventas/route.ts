@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
     nombre_cliente: String(body.nombre_cliente || "").trim(),
     total_asignado: total,
     plan_cuotas: plan,
+    sena: Number(body.sena) > 0 ? Number(body.sena) : 0,
     forma_de_pago: String(body.forma_de_pago || "Efectivo"),
     fecha_orden: body.fecha_orden || new Date().toISOString().slice(0, 10),
     producto1: String(body.producto1 || "").trim(),
