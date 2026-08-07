@@ -26,3 +26,25 @@ export const SITUACION_STYLES: Record<string, string> = {
   "PAGO PARCIAL": "bg-amber-100 text-amber-800",
   "SIN PAGOS": "bg-neutral-200 text-neutral-700",
 };
+
+// --- Agrupar un pago dividido en varias formas de pago (ej.: una cuota pagada parte en
+// efectivo y parte por transferencia) ---
+// La tabla `pagos` no tiene una columna dedicada para esto, así que el ID de grupo se guarda
+// como un prefijo dentro de `nota` (invisible para el usuario: se saca siempre al mostrarla
+// con `parseNota`). Todas las líneas de un mismo cobro dividido comparten el mismo grupoId;
+// al anular una, se anulan todas juntas (ver DELETE /api/pagos).
+const GRUPO_PREFIJO = "⁣grp:"; // ⁣ = separador invisible, no se ve aunque no se filtre
+const GRUPO_REGEX = /^⁣grp:([a-zA-Z0-9-]+)⁣/;
+
+export function construirNota(texto: string, grupoId?: string | null): string {
+  const limpio = (texto || "").trim();
+  if (!grupoId) return limpio;
+  return `${GRUPO_PREFIJO}${grupoId}⁣${limpio}`;
+}
+
+export function parseNota(raw: string | null | undefined): { texto: string; grupoId: string | null } {
+  const s = raw || "";
+  const m = s.match(GRUPO_REGEX);
+  if (!m) return { texto: s, grupoId: null };
+  return { texto: s.slice(m[0].length), grupoId: m[1] };
+}

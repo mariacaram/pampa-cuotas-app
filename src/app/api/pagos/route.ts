@@ -4,6 +4,7 @@ import { getRepo } from "@/lib/server/repo";
 import { NuevoPago } from "@/lib/types";
 import { guardApi } from "@/lib/server/auth";
 import { logAuditoria } from "@/lib/server/usuarios";
+import { parseNota } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -79,16 +80,29 @@ export async function DELETE(req: NextRequest) {
     if (!pago) return NextResponse.json({ error: "El pago no existe" }, { status: 404 });
     const base = await repo.getAlumnoBase(pago.alumno_id);
 
-    await repo.deletePago(body.id);
-    await logAuditoria(g.usuario?.email ?? null, "anular_pago", pago.alumno_id, {
-      pago_id: pago.id,
-      alumno: base?.alumno ?? null,
-      colegio: base?.organizacion ?? null,
-      monto: pago.monto,
-      fecha: pago.fecha,
-      forma_de_pago: pago.forma_de_pago,
-      motivo,
-    });
+    // Si este pago es una de varias líneas de un mismo cobro dividido en distintas formas
+    // de pago (ver PagoForm), tienen un grupoId compartido guardado en la nota. Anular una
+    // línea anula TODAS las del grupo — es un solo cobro, no pagos independientes.
+    const { grupoId } = parseNota(pago.nota);
+    let aAnular = [pago];
+    if (grupoId) {
+      const todos = await repo.listPagos(pago.alumno_id);
+      aAnular = todos.filter((p) => parseNota(p.nota).grupoId === grupoId);
+    }
+
+    for (const p of aAnular) {
+      await repo.deletePago(p.id);
+      await logAuditoria(g.usuario?.email ?? null, "anular_pago", p.alumno_id, {
+        pago_id: p.id,
+        alumno: base?.alumno ?? null,
+        colegio: base?.organizacion ?? null,
+        monto: p.monto,
+        fecha: p.fecha,
+        forma_de_pago: p.forma_de_pago,
+        motivo,
+        ...(aAnular.length > 1 ? { grupo_pagos: aAnular.length } : {}),
+      });
+    }
 
     const alumno = await getAlumnoComputed(pago.alumno_id);
     return NextResponse.json({ ok: true, alumno });

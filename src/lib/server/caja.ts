@@ -1,5 +1,6 @@
 import "server-only";
 import { getRepo } from "./repo";
+import { parseNota } from "@/lib/format";
 
 export type CajaMedio = { forma: string; cantidad: number; monto: number };
 export type CajaPago = {
@@ -68,7 +69,7 @@ export async function getCaja(desde: string, hasta: string): Promise<Caja> {
         forma_de_pago: p.forma_de_pago,
         interes: p.interes,
         bonificacion: p.bonificacion,
-        nota: p.nota,
+        nota: parseNota(p.nota).texto,
       };
     });
 

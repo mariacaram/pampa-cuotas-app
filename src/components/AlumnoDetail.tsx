@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AlumnoComputed } from "@/lib/types";
-import { formatMoney, formatDate } from "@/lib/format";
+import { formatMoney, formatDate, parseNota } from "@/lib/format";
 import { Card, SituacionPill } from "./ui";
 import PagoForm from "./PagoForm";
 
@@ -176,19 +176,26 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {alumno.pagos.map((p) => (
-                  <PagoRow
-                    key={p.id}
-                    p={p}
-                    anulando={anulandoId === p.id}
-                    motivo={motivo}
-                    saving={saving}
-                    onStart={() => { setAnulandoId(p.id); setMotivo(""); setError(null); }}
-                    onCancel={() => { setAnulandoId(null); setMotivo(""); }}
-                    onMotivo={setMotivo}
-                    onConfirm={() => anular(p.id)}
-                  />
-                ))}
+                {alumno.pagos.map((p) => {
+                  const { grupoId } = parseNota(p.nota);
+                  const hermanos = grupoId
+                    ? alumno.pagos.filter((h) => h.id !== p.id && parseNota(h.nota).grupoId === grupoId)
+                    : [];
+                  return (
+                    <PagoRow
+                      key={p.id}
+                      p={p}
+                      hermanos={hermanos}
+                      anulando={anulandoId === p.id}
+                      motivo={motivo}
+                      saving={saving}
+                      onStart={() => { setAnulandoId(p.id); setMotivo(""); setError(null); }}
+                      onCancel={() => { setAnulandoId(null); setMotivo(""); }}
+                      onMotivo={setMotivo}
+                      onConfirm={() => anular(p.id)}
+                    />
+                  );
+                })}
               </tbody>
             </table>
             </div>
@@ -201,6 +208,7 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
 
 function PagoRow({
   p,
+  hermanos,
   anulando,
   motivo,
   saving,
@@ -210,6 +218,7 @@ function PagoRow({
   onConfirm,
 }: {
   p: AlumnoComputed["pagos"][number];
+  hermanos: AlumnoComputed["pagos"];
   anulando: boolean;
   motivo: string;
   saving: boolean;
@@ -218,17 +227,27 @@ function PagoRow({
   onMotivo: (v: string) => void;
   onConfirm: () => void;
 }) {
+  const { texto: notaVisible } = parseNota(p.nota);
+  const esDividido = hermanos.length > 0;
+  const totalGrupo = esDividido ? p.monto + hermanos.reduce((acc, h) => acc + h.monto, 0) : p.monto;
   return (
     <>
       <tr className="border-t border-neutral-100">
         <td className="p-3">{formatDate(p.fecha)}</td>
-        <td className="p-3">{formatMoney(p.monto)}</td>
+        <td className="p-3">
+          {formatMoney(p.monto)}
+          {esDividido && (
+            <span className="ml-1 text-[11px] font-normal text-neutral-400" title="Este cobro se dividió en varias formas de pago">
+              (1 de {hermanos.length + 1})
+            </span>
+          )}
+        </td>
         <td className="p-3">{p.forma_de_pago}</td>
         <td className="p-3">
           {p.interes ? `${formatMoney(p.interes)}${p.interes_pct ? ` (${p.interes_pct}%)` : ""}` : "—"}
         </td>
         <td className="p-3">{p.bonificacion ? formatMoney(p.bonificacion) : "—"}</td>
-        <td className="p-3 text-neutral-500">{p.nota || "—"}</td>
+        <td className="p-3 text-neutral-500">{notaVisible || "—"}</td>
         <td className="p-3 text-right">
           {!anulando && (
             <button
@@ -244,7 +263,9 @@ function PagoRow({
         <tr className="bg-red-50/50">
           <td colSpan={7} className="p-3">
             <p className="mb-2 text-xs font-semibold text-red-700">
-              Anular este cobro de {formatMoney(p.monto)} — indicá el motivo:
+              {esDividido
+                ? `Este cobro se dividió en ${hermanos.length + 1} formas de pago (total ${formatMoney(totalGrupo)}) — al anular, se anulan TODAS juntas. Indicá el motivo:`
+                : `Anular este cobro de ${formatMoney(p.monto)} — indicá el motivo:`}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <input

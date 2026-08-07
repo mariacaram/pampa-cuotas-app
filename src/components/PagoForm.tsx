@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FORMAS_DE_PAGO, formatMoney } from "@/lib/format";
+import { FORMAS_DE_PAGO, formatMoney, construirNota } from "@/lib/format";
 import { NuevoPago } from "@/lib/types";
 
 type Props = {
@@ -91,6 +91,10 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
       // Cada línea (monto + forma de pago) se registra como un pago aparte, para que quede
       // discriminado en Control de caja cuánto entró por cada medio. El interés y la
       // bonificación (si corresponden) se cargan en la última línea, junto con la nota.
+      // Si hay más de una línea, comparten un ID de grupo (guardado dentro de la nota, ver
+      // construirNota) para poder anularlas todas juntas más adelante — es un solo cobro
+      // dividido, no pagos independientes.
+      const grupoId = lineasValidas.length > 1 ? crypto.randomUUID() : undefined;
       for (let i = 0; i < lineasValidas.length; i++) {
         const esUltima = i === lineasValidas.length - 1;
         const body: NuevoPago = {
@@ -101,7 +105,7 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
           interes: esUltima ? interesMonto : 0,
           interes_pct: esUltima && atrasado ? pct : 0,
           bonificacion: esUltima ? bonif : 0,
-          nota: esUltima ? nota : "",
+          nota: construirNota(esUltima ? nota : "", grupoId),
         };
         const res = await fetch("/api/pagos", {
           method: "POST",

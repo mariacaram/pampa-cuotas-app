@@ -4,6 +4,7 @@ import { computeAlumno } from "@/lib/compute";
 import { Pago } from "@/lib/types";
 import { getRepo } from "./repo";
 import { getAlumnosComputed } from "./stats";
+import { parseNota } from "@/lib/format";
 
 // Genera un Excel (.xlsx) con TODA la base:
 //  - Hoja "Alumnos": datos base + saldo/cuotas recalculados con los pagos nuevos.
@@ -54,7 +55,7 @@ export async function buildExportBuffer(): Promise<Buffer> {
         Monto: p.monto,
         "Forma de pago": p.forma_de_pago,
         Interés: p.interes,
-        Nota: p.nota,
+        Nota: parseNota(p.nota).texto,
         "Cargado el": p.creado_en,
       };
     });
