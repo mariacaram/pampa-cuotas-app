@@ -149,19 +149,47 @@ function detectarSena(base: AlumnoBase): number {
   return SENA_DEFAULT;
 }
 
+// Pedido que NO es un uniforme de colegio (no arma ninguno de los 4 combos ni es una prenda
+// suelta reconocida): pedidos de clubes, empresas o personalizados (categorías "Deportes",
+// "Institucional", "Personalizados" en el export). Para estos NO existe el concepto de "seña
+// de $10.000" — es un invento pensado solo para uniformes escolares.
+function esOrdenSinCombo(base: AlumnoBase): boolean {
+  return comboDe(base) === null && prendaSueltaDe(base) === null;
+}
+
+// Monto de cuota para un pedido SIN combo/prenda (club, empresa, personalizado). No suele ser
+// 50/50 exacto: algunos pagan más de entrada, otros de a poco. Se INFIERE del pago real —
+// cuota = lo ya pagado ÷ cuotas ya pagadas — igual que se infiere la seña en los uniformes
+// escolares. Si todavía no pagó nada, se usa reparto parejo (total / cuotas) como default
+// hasta que haga el primer pago.
+function montoCuotaSinCombo(base: AlumnoBase): number {
+  const total = base.total_asignado;
+  const plan = base.plan_cuotas > 0 ? base.plan_cuotas : 1;
+  const pagadas = base.cuotas_pagadas_base;
+  const pagado = base.monto_pagado_base;
+  if (pagadas >= 1 && pagado > 0 && pagadas < plan) {
+    const inferida = round2(pagado / pagadas);
+    if (inferida > 0 && inferida * plan <= total * 1.5) return inferida; // margen amplio, evita inferencias absurdas
+  }
+  return round2(total / plan);
+}
+
 // Monto de la cuota regular (la que se repite en el plan). Prioriza el precio del flyer:
 //  - plan_cuotas <= 1  -> contado: la "cuota" es el total.
-//  - plan_cuotas >= 5  -> plan más largo que el flyer: cuotas iguales (total / n).
-//  - plan_cuotas 2-4   -> si el combo es identificable y el total alcanza, se usa la cuota
-//    EXACTA del flyer (el extra que sobra se cobra entero en la última cuota, nunca repartido).
-//    Si no hay combo (extras/incompletos) o el total no alcanza, se reparte lo que queda tras
-//    la seña en partes iguales (fallback seguro que siempre cierra con el total).
+//  - plan_cuotas >= 5  -> cuotas iguales (total / n).
+//  - pedido SIN combo/prenda (club/empresa) -> se infiere del pago real (ver
+//    `montoCuotaSinCombo`); la seña de $10.000 NO aplica, es solo para uniformes escolares.
+//  - plan_cuotas 2-4 de un uniforme escolar -> si el combo es identificable y el total
+//    alcanza, se usa la cuota EXACTA del flyer (el extra que sobra se cobra entero en la
+//    última cuota, nunca repartido). Si no alcanza, se reparte lo que queda tras la seña en
+//    partes iguales (fallback seguro que siempre cierra con el total).
 // OJO: plan_cuotas cuenta la seña como 1ª cuota, así que las cuotas reales son plan_cuotas - 1.
 function montoCuotaRegular(base: AlumnoBase): number {
   const total = base.total_asignado;
   if (total <= 0) return 0;
   const plan = base.plan_cuotas > 0 ? base.plan_cuotas : 1;
   if (plan <= 1) return round2(total);
+  if (esOrdenSinCombo(base)) return montoCuotaSinCombo(base);
   if (plan >= 5) return round2(total / plan);
   const sena = detectarSena(base);
   const nReales = plan - 1;
@@ -269,12 +297,14 @@ function buildCuotasPlan(
     else estado = "pendiente";
     // Reparto del plan (el extra NUNCA se reparte: va entero en la última cuota):
     //  - contado (1 cuota): la cuota es el total.
-    //  - plan largo (>=5): todas iguales (la última absorbe el redondeo).
-    //  - plan 2-4: 1ª = seña; intermedias = cuota del flyer (montoCuota); última = lo que
-    //    resta (la cuota del flyer + el extra). Siempre suman EXACTO el total.
+    //  - plan largo (>=5), o pedido sin combo/prenda (club/empresa, sin seña): todas iguales
+    //    (la última absorbe el redondeo).
+    //  - plan 2-4 de un uniforme escolar: 1ª = seña; intermedias = cuota del flyer
+    //    (montoCuota); última = lo que resta (la cuota del flyer + el extra). Siempre suman
+    //    EXACTO el total.
     let monto: number;
     if (cuotas <= 1) monto = total;
-    else if (base.plan_cuotas >= 5) monto = k < cuotas ? montoCuota : round2(total - montoCuota * (cuotas - 1));
+    else if (base.plan_cuotas >= 5 || esOrdenSinCombo(base)) monto = k < cuotas ? montoCuota : round2(total - montoCuota * (cuotas - 1));
     else if (k === 1) monto = sena;
     else if (k === cuotas) monto = round2(total - sena - montoCuota * (cuotas - 2));
     else monto = montoCuota;
