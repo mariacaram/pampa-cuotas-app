@@ -13,6 +13,7 @@ export const PRECIOS_COLEGIO: Record<string, number> = {
   "26 imep tm|||C2|||A|||1": 98000,
   "27 col vocacional concepcion|||C1|||J|||1": 89500,
   "27 col vocacional concepcion|||C1|||J|||2": 51300,
+  "27 col vocacional concepcion|||C1|||J|||3": 41200,
   "27 el cajon|||C3|||A|||3": 40667,
   "27 esc belgrano tt|||C2|||A|||3": 42333,
   "27 esc belgrano tt|||C4|||A|||3": 53667,
