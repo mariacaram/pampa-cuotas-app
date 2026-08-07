@@ -8,7 +8,8 @@ export type CajaPago = {
   fecha: string;
   alumno: string;
   colegio: string;
-  monto: number;
+  monto: number; // solo la cuota (sin interés)
+  totalPagado: number; // monto + interés — la plata que REALMENTE entró por ese pago
   forma_de_pago: string;
   interes: number;
   bonificacion: number;
@@ -79,19 +80,24 @@ export async function getCaja(
     return (usuarioEmail || "").toLowerCase() === miEmail;
   });
 
+  // IMPORTANTE: los totales (acá, por medio de pago, y por usuario más abajo) suman
+  // monto + interés — la plata que REALMENTE entró en cada pago — no solo la cuota. Si sumaran
+  // solo la cuota, nunca cerrarían contra la plata real en la mano (arqueo de caja) ni contra
+  // lo que efectivamente se transfirió/acreditó (conciliación bancaria de pagos virtuales).
   let totalCobrado = 0;
   let totalInteres = 0;
   let totalBonificado = 0;
   const medioMap = new Map<string, CajaMedio>();
 
   for (const p of visibles) {
-    totalCobrado += p.monto || 0;
+    const total = (p.monto || 0) + (p.interes || 0);
+    totalCobrado += total;
     totalInteres += p.interes || 0;
     totalBonificado += p.bonificacion || 0;
     const forma = (p.forma_de_pago || "Sin especificar").trim();
     const m = medioMap.get(forma) ?? { forma, cantidad: 0, monto: 0 };
     m.cantidad += 1;
-    m.monto += p.monto || 0;
+    m.monto += total;
     medioMap.set(forma, m);
   }
 
@@ -110,6 +116,7 @@ export async function getCaja(
         alumno: a?.alumno ?? "(alumno no encontrado)",
         colegio: a?.organizacion ?? "",
         monto: p.monto,
+        totalPagado: round2((p.monto || 0) + (p.interes || 0)),
         forma_de_pago: p.forma_de_pago,
         interes: p.interes,
         bonificacion: p.bonificacion,
@@ -129,7 +136,7 @@ export async function getCaja(
       const key = nombreDe(usuarioEmail);
       const r = map.get(key) ?? { usuario: key, cantidad: 0, monto: 0 };
       r.cantidad += 1;
-      r.monto += p.monto || 0;
+      r.monto += (p.monto || 0) + (p.interes || 0);
       map.set(key, r);
     }
     efectivoPorUsuario = [...map.values()]

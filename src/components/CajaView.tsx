@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { formatMoney, formatDate } from "@/lib/format";
 import { Card, StatCard } from "./ui";
 import { Stagger, StaggerItem } from "./motion/Reveal";
+import Billetero from "./Billetero";
 
 type CajaMedio = { forma: string; cantidad: number; monto: number };
 type CajaPago = {
@@ -11,6 +12,7 @@ type CajaPago = {
   alumno: string;
   colegio: string;
   monto: number;
+  totalPagado: number;
   forma_de_pago: string;
   interes: number;
   bonificacion: number;
@@ -168,6 +170,10 @@ export default function CajaView() {
             )}
           </Card>
 
+          <Billetero
+            totalEsperado={data.porMedio.find((m) => m.forma.trim().toLowerCase() === "efectivo")?.monto ?? 0}
+          />
+
           {data.esAdmin && data.efectivoPorUsuario.length > 0 && (
             <Card>
               <p className="mb-4 font-semibold text-neutral-800">Efectivo por usuario</p>
@@ -205,7 +211,9 @@ export default function CajaView() {
                     <th className="p-3">Fecha</th>
                     <th className="p-3">Alumno</th>
                     <th className="p-3">Colegio</th>
-                    <th className="p-3">Monto</th>
+                    <th className="p-3">Total</th>
+                    <th className="p-3">Cuota</th>
+                    <th className="p-3">Interés</th>
                     <th className="p-3">Medio</th>
                     <th className="p-3">Usuario</th>
                     <th className="p-3">Bonif.</th>
@@ -218,7 +226,9 @@ export default function CajaView() {
                       <td className="p-3">{formatDate(p.fecha)}</td>
                       <td className="p-3">{p.alumno}</td>
                       <td className="p-3 text-neutral-500">{p.colegio}</td>
-                      <td className="p-3 font-medium">{formatMoney(p.monto)}</td>
+                      <td className="p-3 font-semibold">{formatMoney(p.totalPagado)}</td>
+                      <td className="p-3">{formatMoney(p.monto)}</td>
+                      <td className="p-3">{p.interes ? formatMoney(p.interes) : "—"}</td>
                       <td className="p-3">{p.forma_de_pago}</td>
                       <td className="p-3 text-neutral-500">{p.usuario}</td>
                       <td className="p-3">{p.bonificacion ? formatMoney(p.bonificacion) : "—"}</td>
@@ -227,7 +237,7 @@ export default function CajaView() {
                   ))}
                   {data.pagos.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="p-4 text-center text-neutral-400">
+                      <td colSpan={10} className="p-4 text-center text-neutral-400">
                         No hay pagos registrados en este período.
                       </td>
                     </tr>

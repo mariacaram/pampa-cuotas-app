@@ -31,14 +31,15 @@ export async function buildCajaXlsx(desde: string, hasta: string, usuarioActual:
   wsResumen["!cols"] = [{ wch: 28 }, { wch: 14 }, { wch: 16 }];
 
   const detalle: (string | number)[][] = [
-    ["Fecha", "Alumno", "Colegio", "Monto", "Forma de pago", "Interés", "Bonificación", "Usuario", "Nota"],
+    ["Fecha", "Alumno", "Colegio", "Total", "Cuota", "Interés", "Forma de pago", "Bonificación", "Usuario", "Nota"],
     ...c.pagos.map((p) => [
       ddmmyyyy(p.fecha),
       p.alumno,
       p.colegio,
+      Math.round(p.totalPagado),
       Math.round(p.monto),
-      p.forma_de_pago,
       Math.round(p.interes),
+      p.forma_de_pago,
       Math.round(p.bonificacion),
       p.usuario,
       p.nota,
@@ -46,8 +47,8 @@ export async function buildCajaXlsx(desde: string, hasta: string, usuarioActual:
   ];
   const wsDetalle = XLSX.utils.aoa_to_sheet(detalle);
   wsDetalle["!cols"] = [
-    { wch: 12 }, { wch: 26 }, { wch: 28 }, { wch: 12 },
-    { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 20 }, { wch: 24 },
+    { wch: 12 }, { wch: 26 }, { wch: 28 }, { wch: 12 }, { wch: 12 },
+    { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 20 }, { wch: 24 },
   ];
 
   const wb = XLSX.utils.book_new();
@@ -176,13 +177,14 @@ export async function buildCajaPdf(desde: string, hasta: string, usuarioActual: 
   ctx.page.drawText("Detalle de pagos", { x: MARGIN, y: ctx.y, size: 10, font: bold, color: TEXT });
   ctx.y -= 16;
   const cols = [
-    { title: "Fecha", w: 0.1, align: "left" as const },
-    { title: "Alumno", w: 0.21, align: "left" as const },
-    { title: "Colegio", w: 0.18, align: "left" as const },
-    { title: "Monto", w: 0.12, align: "right" as const },
-    { title: "Medio", w: 0.12, align: "left" as const },
-    { title: "Usuario", w: 0.17, align: "left" as const },
-    { title: "Bonif.", w: 0.1, align: "right" as const },
+    { title: "Fecha", w: 0.09, align: "left" as const },
+    { title: "Alumno", w: 0.19, align: "left" as const },
+    { title: "Colegio", w: 0.16, align: "left" as const },
+    { title: "Total", w: 0.11, align: "right" as const },
+    { title: "Cuota", w: 0.1, align: "right" as const },
+    { title: "Medio", w: 0.11, align: "left" as const },
+    { title: "Usuario", w: 0.15, align: "left" as const },
+    { title: "Bonif.", w: 0.09, align: "right" as const },
   ];
   drawTable(
     ctx,
@@ -191,6 +193,7 @@ export async function buildCajaPdf(desde: string, hasta: string, usuarioActual: 
       ddmmyyyy(p.fecha),
       safe(p.alumno),
       safe(p.colegio),
+      money(p.totalPagado),
       money(p.monto),
       safe(p.forma_de_pago),
       safe(p.usuario),
