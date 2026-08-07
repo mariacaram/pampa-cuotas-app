@@ -1,6 +1,7 @@
 import "server-only";
 import { getRepo } from "./repo";
 import { parseNota } from "@/lib/format";
+import { listUsuarios } from "./usuarios";
 
 export type CajaMedio = { forma: string; cantidad: number; monto: number };
 export type CajaPago = {
@@ -12,7 +13,9 @@ export type CajaPago = {
   interes: number;
   bonificacion: number;
   nota: string;
+  usuario: string; // quién lo cobró (nombre si se conoce, si no el email; "—" si no se sabe)
 };
+export type CajaUsuarioResumen = { usuario: string; cantidad: number; monto: number };
 export type Caja = {
   desde: string;
   hasta: string;
@@ -22,26 +25,66 @@ export type Caja = {
   totalBonificado: number;
   porMedio: CajaMedio[];
   pagos: CajaPago[];
+  esAdmin: boolean;
+  // Cuánto efectivo cobró cada usuario en el período — solo se completa para admins (una
+  // cajera no ve cuánto cobraron las demás, solo lo suyo).
+  efectivoPorUsuario: CajaUsuarioResumen[];
 };
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-// Control de caja: todos los pagos cargados en la app dentro del rango [desde, hasta].
-export async function getCaja(desde: string, hasta: string): Promise<Caja> {
+function esEfectivo(forma: string): boolean {
+  return (forma || "").trim().toLowerCase() === "efectivo";
+}
+
+// Control de caja: pagos cargados en la app dentro del rango [desde, hasta].
+//
+// Privacidad: el efectivo es "su caja" de quien lo cobró — cada usuario solo ve (y descarga)
+// los cobros en EFECTIVO que hizo ella misma, para poder cuadrarla; un admin ve el efectivo de
+// todas. El resto de las formas de pago (transferencia, tarjeta, QR, terceros...) es un reporte
+// COMPARTIDO: cualquier usuario lo ve completo, siempre mostrando quién cobró cada uno.
+//
+// usuarioActual: quien pide el reporte. null = sin login configurado (modo prueba abierto) —
+// se trata como admin, ve todo, no tiene sentido restringir nada.
+export async function getCaja(
+  desde: string,
+  hasta: string,
+  usuarioActual: { email: string; rol: "admin" | "miembro" } | null
+): Promise<Caja> {
   const repo = await getRepo();
-  const [alumnos, pagos] = await Promise.all([repo.listAllAlumnos(), repo.listAllPagos()]);
-  const nombre = new Map(alumnos.map((a) => [a.alumno_id, a]));
+  const [alumnos, pagos, usuarios] = await Promise.all([
+    repo.listAllAlumnos(),
+    repo.listAllPagos(),
+    listUsuarios(),
+  ]);
+  const nombreAlumno = new Map(alumnos.map((a) => [a.alumno_id, a]));
+  const nombrePorEmail = new Map(usuarios.map((u) => [u.email.toLowerCase(), u.nombre || u.email]));
+
+  function nombreDe(email: string | null): string {
+    if (!email) return "—";
+    return nombrePorEmail.get(email.toLowerCase()) || email;
+  }
+
+  const esAdmin = !usuarioActual || usuarioActual.rol === "admin";
+  const miEmail = (usuarioActual?.email || "").toLowerCase();
 
   const enRango = pagos.filter((p) => p.fecha >= desde && p.fecha <= hasta);
+
+  const visibles = enRango.filter((p) => {
+    if (!esEfectivo(p.forma_de_pago)) return true;
+    if (esAdmin) return true;
+    const { usuarioEmail } = parseNota(p.nota);
+    return (usuarioEmail || "").toLowerCase() === miEmail;
+  });
 
   let totalCobrado = 0;
   let totalInteres = 0;
   let totalBonificado = 0;
   const medioMap = new Map<string, CajaMedio>();
 
-  for (const p of enRango) {
+  for (const p of visibles) {
     totalCobrado += p.monto || 0;
     totalInteres += p.interes || 0;
     totalBonificado += p.bonificacion || 0;
@@ -56,11 +99,12 @@ export async function getCaja(desde: string, hasta: string): Promise<Caja> {
     .map((m) => ({ ...m, monto: round2(m.monto) }))
     .sort((a, b) => b.monto - a.monto);
 
-  const lista: CajaPago[] = enRango
+  const lista: CajaPago[] = visibles
     .slice()
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || String(a.creado_en).localeCompare(String(b.creado_en)))
     .map((p) => {
-      const a = nombre.get(p.alumno_id);
+      const a = nombreAlumno.get(p.alumno_id);
+      const { texto, usuarioEmail } = parseNota(p.nota);
       return {
         fecha: p.fecha,
         alumno: a?.alumno ?? "(alumno no encontrado)",
@@ -69,18 +113,40 @@ export async function getCaja(desde: string, hasta: string): Promise<Caja> {
         forma_de_pago: p.forma_de_pago,
         interes: p.interes,
         bonificacion: p.bonificacion,
-        nota: parseNota(p.nota).texto,
+        nota: texto,
+        usuario: nombreDe(usuarioEmail),
       };
     });
+
+  // Resumen de efectivo por usuario (todo el rango, no solo lo "visible" — para un admin es lo
+  // mismo, ya que ve todo). Solo se calcula/devuelve para admins.
+  let efectivoPorUsuario: CajaUsuarioResumen[] = [];
+  if (esAdmin) {
+    const efectivo = enRango.filter((p) => esEfectivo(p.forma_de_pago));
+    const map = new Map<string, CajaUsuarioResumen>();
+    for (const p of efectivo) {
+      const { usuarioEmail } = parseNota(p.nota);
+      const key = nombreDe(usuarioEmail);
+      const r = map.get(key) ?? { usuario: key, cantidad: 0, monto: 0 };
+      r.cantidad += 1;
+      r.monto += p.monto || 0;
+      map.set(key, r);
+    }
+    efectivoPorUsuario = [...map.values()]
+      .map((r) => ({ ...r, monto: round2(r.monto) }))
+      .sort((a, b) => b.monto - a.monto);
+  }
 
   return {
     desde,
     hasta,
-    cantidadPagos: enRango.length,
+    cantidadPagos: visibles.length,
     totalCobrado: round2(totalCobrado),
     totalInteres: round2(totalInteres),
     totalBonificado: round2(totalBonificado),
     porMedio,
     pagos: lista,
+    esAdmin,
+    efectivoPorUsuario,
   };
 }

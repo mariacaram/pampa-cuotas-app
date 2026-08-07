@@ -45,10 +45,17 @@ export const SITUACION_STYLES: Record<string, string> = {
 //      grupoId, acá CADA integrante se puede anular por separado sin afectar a los demás — el
 //      loteId es solo para poder mostrar "de qué cobro grupal viene" y reconstruir el total del
 //      lote (ver src/lib/server/lotes.ts y el detalle que se guarda en Auditoría al anular).
+//   4) usuarioEmail: qué usuario cobró este pago — para los reportes de Control de Caja (cada
+//      cajera solo ve/descarga sus propios cobros en EFECTIVO, para cuadrar su caja; el resto
+//      de las formas de pago es un reporte compartido pero igual muestra quién lo cobró). Lo
+//      agrega SIEMPRE el servidor (POST /api/pagos, con el usuario de la sesión — nunca lo que
+//      mande el cliente), para que no se pueda falsear. Pagos de antes de este feature no lo
+//      tienen (quedan sin usuario asignado).
 const SEP = "⁣"; // U+2063 INVISIBLE SEPARATOR
 const GRUPO_REGEX = new RegExp(`^${SEP}grp:([a-zA-Z0-9-]+)${SEP}`);
 const LOTE_REGEX = new RegExp(`^${SEP}lote:([a-zA-Z0-9-]+)${SEP}`);
 const INT_REGEX = new RegExp(`^${SEP}int:(-?[0-9.]+),(-?[0-9.]+)${SEP}`);
+const USR_REGEX = new RegExp(`^${SEP}usr:([^${SEP}]+)${SEP}`);
 
 export function construirNota(
   texto: string,
@@ -57,6 +64,7 @@ export function construirNota(
     loteId?: string | null;
     interesAtraso?: number;
     interesLista?: number;
+    usuarioEmail?: string | null;
   }
 ): string {
   const limpio = (texto || "").trim();
@@ -66,6 +74,7 @@ export function construirNota(
   if (opts?.interesAtraso || opts?.interesLista) {
     prefijo += `${SEP}int:${Math.round(opts.interesAtraso || 0)},${Math.round(opts.interesLista || 0)}${SEP}`;
   }
+  if (opts?.usuarioEmail) prefijo += `${SEP}usr:${opts.usuarioEmail}${SEP}`;
   return `${prefijo}${limpio}`;
 }
 
@@ -75,12 +84,14 @@ export function parseNota(raw: string | null | undefined): {
   loteId: string | null;
   interesAtraso: number;
   interesLista: number;
+  usuarioEmail: string | null;
 } {
   let s = raw || "";
   let grupoId: string | null = null;
   let loteId: string | null = null;
   let interesAtraso = 0;
   let interesLista = 0;
+  let usuarioEmail: string | null = null;
 
   const mGrupo = s.match(GRUPO_REGEX);
   if (mGrupo) {
@@ -98,5 +109,10 @@ export function parseNota(raw: string | null | undefined): {
     interesLista = Number(mInt[2]) || 0;
     s = s.slice(mInt[0].length);
   }
-  return { texto: s, grupoId, loteId, interesAtraso, interesLista };
+  const mUsr = s.match(USR_REGEX);
+  if (mUsr) {
+    usuarioEmail = mUsr[1];
+    s = s.slice(mUsr[0].length);
+  }
+  return { texto: s, grupoId, loteId, interesAtraso, interesLista, usuarioEmail };
 }

@@ -15,7 +15,9 @@ type CajaPago = {
   interes: number;
   bonificacion: number;
   nota: string;
+  usuario: string;
 };
+type CajaUsuarioResumen = { usuario: string; cantidad: number; monto: number };
 type Caja = {
   desde: string;
   hasta: string;
@@ -25,6 +27,8 @@ type Caja = {
   totalBonificado: number;
   porMedio: CajaMedio[];
   pagos: CajaPago[];
+  esAdmin: boolean;
+  efectivoPorUsuario: CajaUsuarioResumen[];
 };
 
 function inicioDeMes() {
@@ -117,6 +121,12 @@ export default function CajaView() {
         <p className="text-sm text-neutral-400">Cargando…</p>
       ) : data ? (
         <>
+          <div className="rounded-lg bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
+            {data.esAdmin
+              ? "Estás viendo el efectivo de todos los usuarios (sos admin). El resto de las formas de pago siempre es compartido, con quién cobró cada una."
+              : "El efectivo que ves y descargás acá es solo el tuyo, para cuadrar tu caja. El resto de las formas de pago (transferencia, tarjeta, terceros, etc.) es un reporte compartido — se ve todo, con quién cobró cada uno."}
+          </div>
+
           <Stagger className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StaggerItem>
               <StatCard label="Total cobrado" animateTo={data.totalCobrado} format={formatMoney} accent />
@@ -158,6 +168,30 @@ export default function CajaView() {
             )}
           </Card>
 
+          {data.esAdmin && data.efectivoPorUsuario.length > 0 && (
+            <Card>
+              <p className="mb-4 font-semibold text-neutral-800">Efectivo por usuario</p>
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs text-neutral-500">
+                  <tr>
+                    <th className="py-1">Usuario</th>
+                    <th className="py-1">Cobros</th>
+                    <th className="py-1">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.efectivoPorUsuario.map((u) => (
+                    <tr key={u.usuario} className="border-t border-neutral-100">
+                      <td className="py-2">{u.usuario}</td>
+                      <td className="py-2">{u.cantidad}</td>
+                      <td className="py-2 font-medium">{formatMoney(u.monto)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+
           <Card className="p-0">
             <div className="border-b border-neutral-100 px-5 py-3">
               <p className="text-sm font-semibold text-neutral-800">
@@ -173,6 +207,7 @@ export default function CajaView() {
                     <th className="p-3">Colegio</th>
                     <th className="p-3">Monto</th>
                     <th className="p-3">Medio</th>
+                    <th className="p-3">Usuario</th>
                     <th className="p-3">Bonif.</th>
                     <th className="p-3">Nota</th>
                   </tr>
@@ -185,13 +220,14 @@ export default function CajaView() {
                       <td className="p-3 text-neutral-500">{p.colegio}</td>
                       <td className="p-3 font-medium">{formatMoney(p.monto)}</td>
                       <td className="p-3">{p.forma_de_pago}</td>
+                      <td className="p-3 text-neutral-500">{p.usuario}</td>
                       <td className="p-3">{p.bonificacion ? formatMoney(p.bonificacion) : "—"}</td>
                       <td className="p-3 text-neutral-500">{p.nota || "—"}</td>
                     </tr>
                   ))}
                   {data.pagos.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="p-4 text-center text-neutral-400">
+                      <td colSpan={8} className="p-4 text-center text-neutral-400">
                         No hay pagos registrados en este período.
                       </td>
                     </tr>

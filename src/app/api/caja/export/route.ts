@@ -21,9 +21,11 @@ export async function GET(req: NextRequest) {
   const format = req.nextUrl.searchParams.get("format") === "pdf" ? "pdf" : "xlsx";
   const base = `caja-${desde}_a_${hasta}`;
 
+  const usuarioActual = g.usuario ? { email: g.usuario.email, rol: g.usuario.rol } : null;
+
   try {
     if (format === "pdf") {
-      const buffer = await buildCajaPdf(desde, hasta);
+      const buffer = await buildCajaPdf(desde, hasta, usuarioActual);
       return new NextResponse(new Uint8Array(buffer), {
         status: 200,
         headers: {
@@ -33,7 +35,7 @@ export async function GET(req: NextRequest) {
         },
       });
     }
-    const buffer = await buildCajaXlsx(desde, hasta);
+    const buffer = await buildCajaXlsx(desde, hasta, usuarioActual);
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {

@@ -3,6 +3,8 @@ import * as XLSX from "xlsx";
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from "pdf-lib";
 import { getCaja } from "./caja";
 
+type UsuarioActual = { email: string; rol: "admin" | "miembro" } | null;
+
 function money(n: number): string {
   return "$ " + Math.round(n || 0).toLocaleString("es-AR");
 }
@@ -11,11 +13,12 @@ function ddmmyyyy(iso: string): string {
 }
 
 // ------------------------------ EXCEL ------------------------------
-export async function buildCajaXlsx(desde: string, hasta: string): Promise<Buffer> {
-  const c = await getCaja(desde, hasta);
+export async function buildCajaXlsx(desde: string, hasta: string, usuarioActual: UsuarioActual): Promise<Buffer> {
+  const c = await getCaja(desde, hasta, usuarioActual);
 
   const resumen: (string | number)[][] = [
     ["Control de caja", `${ddmmyyyy(desde)} a ${ddmmyyyy(hasta)}`],
+    ...(c.esAdmin ? [] : [["Efectivo: solo tus propios cobros", ""]]),
     ["Cantidad de pagos", c.cantidadPagos],
     ["Total cobrado", Math.round(c.totalCobrado)],
     ["Total bonificado", Math.round(c.totalBonificado)],
@@ -28,7 +31,7 @@ export async function buildCajaXlsx(desde: string, hasta: string): Promise<Buffe
   wsResumen["!cols"] = [{ wch: 28 }, { wch: 14 }, { wch: 16 }];
 
   const detalle: (string | number)[][] = [
-    ["Fecha", "Alumno", "Colegio", "Monto", "Forma de pago", "Interés", "Bonificación", "Nota"],
+    ["Fecha", "Alumno", "Colegio", "Monto", "Forma de pago", "Interés", "Bonificación", "Usuario", "Nota"],
     ...c.pagos.map((p) => [
       ddmmyyyy(p.fecha),
       p.alumno,
@@ -37,18 +40,33 @@ export async function buildCajaXlsx(desde: string, hasta: string): Promise<Buffe
       p.forma_de_pago,
       Math.round(p.interes),
       Math.round(p.bonificacion),
+      p.usuario,
       p.nota,
     ]),
   ];
   const wsDetalle = XLSX.utils.aoa_to_sheet(detalle);
   wsDetalle["!cols"] = [
     { wch: 12 }, { wch: 26 }, { wch: 28 }, { wch: 12 },
-    { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 24 },
+    { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 20 }, { wch: 24 },
   ];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
   XLSX.utils.book_append_sheet(wb, wsDetalle, "Detalle pagos");
+
+  // Efectivo por usuario: solo para admins (cada cajera ya ve solo lo suyo en el detalle).
+  if (c.esAdmin && c.efectivoPorUsuario.length > 0) {
+    const porUsuario: (string | number)[][] = [
+      ["Efectivo por usuario", `${ddmmyyyy(desde)} a ${ddmmyyyy(hasta)}`],
+      [],
+      ["Usuario", "Cantidad de cobros", "Total"],
+      ...c.efectivoPorUsuario.map((u) => [u.usuario, u.cantidad, Math.round(u.monto)]),
+    ];
+    const wsUsuario = XLSX.utils.aoa_to_sheet(porUsuario);
+    wsUsuario["!cols"] = [{ wch: 28 }, { wch: 18 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, wsUsuario, "Efectivo por usuario");
+  }
+
   return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }
 
@@ -79,8 +97,8 @@ function truncate(font: PDFFont, text: string, size: number, maxW: number): stri
   return t + "...";
 }
 
-export async function buildCajaPdf(desde: string, hasta: string): Promise<Buffer> {
-  const c = await getCaja(desde, hasta);
+export async function buildCajaPdf(desde: string, hasta: string, usuarioActual: UsuarioActual): Promise<Buffer> {
+  const c = await getCaja(desde, hasta, usuarioActual);
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -89,13 +107,16 @@ export async function buildCajaPdf(desde: string, hasta: string): Promise<Buffer
   const headH = 54;
   ctx.page.drawRectangle({ x: 0, y: PAGE_H - headH, width: PAGE_W, height: headH, color: BLUE });
   ctx.page.drawText("Control de caja", { x: MARGIN, y: PAGE_H - 34, size: 18, font: bold, color: WHITE });
-  ctx.page.drawText(`${ddmmyyyy(desde)}  a  ${ddmmyyyy(hasta)}`, {
-    x: MARGIN,
-    y: PAGE_H - 48,
-    size: 9,
-    font,
-    color: rgb(0.85, 0.92, 0.99),
-  });
+  ctx.page.drawText(
+    `${ddmmyyyy(desde)}  a  ${ddmmyyyy(hasta)}${c.esAdmin ? "" : "  ·  Efectivo: solo tus propios cobros"}`,
+    {
+      x: MARGIN,
+      y: PAGE_H - 48,
+      size: 9,
+      font,
+      color: rgb(0.85, 0.92, 0.99),
+    }
+  );
   ctx.y = PAGE_H - headH - 20;
 
   const kpis = [
@@ -134,15 +155,33 @@ export async function buildCajaPdf(desde: string, hasta: string): Promise<Buffer
   drawTable(ctx, medioCols, c.porMedio.map((m) => [safe(m.forma), String(m.cantidad), money(m.monto)]));
   ctx.y -= 10;
 
+  // Efectivo por usuario (solo admins)
+  if (c.esAdmin && c.efectivoPorUsuario.length > 0) {
+    ctx.page.drawText("Efectivo por usuario", { x: MARGIN, y: ctx.y, size: 10, font: bold, color: TEXT });
+    ctx.y -= 16;
+    const usuarioCols = [
+      { title: "Usuario", w: 0.5, align: "left" as const },
+      { title: "Cobros", w: 0.25, align: "right" as const },
+      { title: "Total", w: 0.25, align: "right" as const },
+    ];
+    drawTable(
+      ctx,
+      usuarioCols,
+      c.efectivoPorUsuario.map((u) => [safe(u.usuario), String(u.cantidad), money(u.monto)])
+    );
+    ctx.y -= 10;
+  }
+
   // Detalle de pagos
   ctx.page.drawText("Detalle de pagos", { x: MARGIN, y: ctx.y, size: 10, font: bold, color: TEXT });
   ctx.y -= 16;
   const cols = [
-    { title: "Fecha", w: 0.12, align: "left" as const },
-    { title: "Alumno", w: 0.26, align: "left" as const },
-    { title: "Colegio", w: 0.24, align: "left" as const },
-    { title: "Monto", w: 0.14, align: "right" as const },
-    { title: "Medio", w: 0.14, align: "left" as const },
+    { title: "Fecha", w: 0.1, align: "left" as const },
+    { title: "Alumno", w: 0.21, align: "left" as const },
+    { title: "Colegio", w: 0.18, align: "left" as const },
+    { title: "Monto", w: 0.12, align: "right" as const },
+    { title: "Medio", w: 0.12, align: "left" as const },
+    { title: "Usuario", w: 0.17, align: "left" as const },
     { title: "Bonif.", w: 0.1, align: "right" as const },
   ];
   drawTable(
@@ -154,6 +193,7 @@ export async function buildCajaPdf(desde: string, hasta: string): Promise<Buffer
       safe(p.colegio),
       money(p.monto),
       safe(p.forma_de_pago),
+      safe(p.usuario),
       p.bonificacion ? money(p.bonificacion) : "-",
     ])
   );

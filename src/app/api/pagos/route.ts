@@ -4,7 +4,7 @@ import { getRepo } from "@/lib/server/repo";
 import { NuevoPago } from "@/lib/types";
 import { guardApi } from "@/lib/server/auth";
 import { logAuditoria } from "@/lib/server/usuarios";
-import { parseNota } from "@/lib/format";
+import { parseNota, construirNota } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +27,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // El usuario que cobró SIEMPRE lo pone el servidor (el de la sesión autenticada), nunca lo
+  // que mande el cliente — para los reportes de Control de Caja (cada cajera cuadra su propia
+  // caja en efectivo). Se agrega arriba de cualquier otra marca que ya traiga la nota
+  // (grupoId/loteId/desglose de interés, ver PagoForm/PagoGrupalForm), sin pisarlas.
+  const { texto, grupoId, loteId, interesAtraso, interesLista } = parseNota(body.nota);
   const pago: NuevoPago = {
     alumno_id: String(body.alumno_id),
     fecha: body.fecha || new Date().toISOString().slice(0, 10),
@@ -35,7 +40,13 @@ export async function POST(req: NextRequest) {
     interes: Number(body.interes) > 0 ? Number(body.interes) : 0,
     interes_pct: Number(body.interes_pct) > 0 ? Number(body.interes_pct) : 0,
     bonificacion: Number(body.bonificacion) > 0 ? Number(body.bonificacion) : 0,
-    nota: body.nota || "",
+    nota: construirNota(texto, {
+      grupoId,
+      loteId,
+      interesAtraso,
+      interesLista,
+      usuarioEmail: g.usuario?.email ?? null,
+    }),
   };
 
   try {

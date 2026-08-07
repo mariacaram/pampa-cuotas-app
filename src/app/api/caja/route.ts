@@ -18,7 +18,11 @@ export async function GET(req: NextRequest) {
   const desde = req.nextUrl.searchParams.get("desde") || def.desde;
   const hasta = req.nextUrl.searchParams.get("hasta") || def.hasta;
   try {
-    const caja = await getCaja(desde, hasta);
+    const caja = await getCaja(
+      desde,
+      hasta,
+      g.usuario ? { email: g.usuario.email, rol: g.usuario.rol } : null
+    );
     return NextResponse.json({ caja });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
