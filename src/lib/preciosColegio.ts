@@ -1,9 +1,12 @@
 // Precios por cuota específicos de colegio, derivados de los datos reales (no del flyer nacional).
-// Generado analizando: para cada (colegio, combo, período, cuotas reales), qué monto total pagó la
-// MAYORÍA de los alumnos de ese grupo. Solo se guarda acá cuando ese total es MENOR al mínimo del
-// flyer para ese combo (un precio realmente distinto, negociado aparte). Si el total es igual o mayor
-// al flyer, NO se guarda — se deja que el flyer normal aplique y el excedente (extra) se absorba
-// entero en la última cuota, nunca repartido (regla explícita de Paulina, 2026-08-07).
+// La mayoría se generó analizando: para cada (colegio, combo, período, cuotas reales), qué monto
+// total pagó la MAYORÍA de los alumnos de ese grupo — ahí solo se guarda cuando ese total es MENOR
+// al mínimo del flyer para ese combo (un precio realmente distinto, negociado aparte). Si el total
+// es igual o mayor al flyer, NO se guarda — se deja que el flyer normal aplique y el excedente
+// (extra) se absorba entero en la última cuota, nunca repartido (regla explícita de Paulina,
+// 2026-08-07). EXCEPCIÓN: algunas entradas están confirmadas por foto directa de la forma de pago
+// real del colegio (marcadas abajo) — esas SÍ pueden superar el flyer nacional, porque no son
+// "flyer + extra" sino un precio propio verificado, más alto que el nacional.
 // Clave: "<organizacion en minúscula>|||<combo C1-C4>|||<periodo A|J>|||<cuotas reales 1-3>"
 // Valor: monto de CADA cuota (ya con la seña de 10.000 descontada), igual que FLYER_ABRIL/FLYER_JULIO.
 // Regenerado: 2026-08-07 (post actualización de 189 pedidos con datos reales del Excel de Paulina).
@@ -15,6 +18,9 @@ export const PRECIOS_COLEGIO: Record<string, number> = {
   "27 col vocacional concepcion|||C1|||J|||2": 51300,
   "27 col vocacional concepcion|||C1|||J|||3": 41200,
   "27 el cajon|||C3|||A|||3": 40667,
+  // Confirmado por foto (2026-08-07): Chomba+Buzo+Babucha, opción 2 y 4 cuotas.
+  "27 guemes|||C3|||A|||1": 142000,
+  "27 guemes|||C3|||A|||3": 58000,
   "27 esc belgrano tt|||C2|||A|||3": 42333,
   "27 esc belgrano tt|||C4|||A|||3": 53667,
   "27 nsv|||C1|||A|||3": 31667,
