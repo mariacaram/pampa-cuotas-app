@@ -26,8 +26,11 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
 
   const pct = Number(interesPct) || 0;
   const baseCuotas = Math.round(cantidadCuotas * montoCuota);
-  const interesMonto = atrasado ? Math.round(baseCuotas * (pct / 100)) : 0;
-  const totalReferencia = baseCuotas + interesMonto;
+  // El interés se calcula sobre lo que se escribe en "Monto cobrado" (editable), no sobre el
+  // valor sugerido de la cuota — así funciona bien también cuando se carga un monto distinto.
+  const montoIngresado = Number(monto) || 0;
+  const interesMonto = atrasado ? Math.round(montoIngresado * (pct / 100)) : 0;
+  const totalReferencia = montoIngresado + interesMonto;
   const bonif = conBonificacion ? Number(bonificacion) || 0 : 0;
   const maxCuotas = Math.max(1, cuotasRestantes || 1);
 
@@ -175,9 +178,7 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
               />
             </div>
             <div className="text-xs text-neutral-600">
-              <p>
-                {cantidadCuotas} cuota{cantidadCuotas > 1 ? "s" : ""}: {formatMoney(baseCuotas)}
-              </p>
+              <p>Monto cobrado: {formatMoney(montoIngresado)}</p>
               <p>Interés ({pct}%): {formatMoney(interesMonto)}</p>
               <p className="font-semibold text-emerald-800">
                 Total de referencia: {formatMoney(totalReferencia)}
