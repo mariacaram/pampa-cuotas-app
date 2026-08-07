@@ -1,6 +1,7 @@
 import { AlumnoBase, AlumnoComputed, CuotaPlan, Pago, Situacion } from "./types";
 import { PRECIOS_COLEGIO } from "./preciosColegio";
 import { PRECIOS_PRENDA_SUELTA } from "./preciosPrendaSuelta";
+import { parseNota } from "./format";
 
 function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -209,6 +210,24 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
   const sumaPagos = pagos.reduce((acc, p) => acc + (p.monto || 0), 0);
   const interesTotal = pagos.reduce((acc, p) => acc + (p.interes || 0), 0);
   const bonificacionTotal = pagos.reduce((acc, p) => acc + (p.bonificacion || 0), 0);
+  // Desglose de interesTotal en "por cuota vencida" vs "precio de lista (no efectivo)": el
+  // desglose real viene escondido en la nota (ver construirNota/parseNota en format.ts). Los
+  // pagos de ANTES de que existiera este desglose no lo tienen — para esos, todo el interés
+  // guardado se cuenta como "atraso", que era el único tipo de recargo que existía antes.
+  // IMPORTANTE: este interés es SIEMPRE plata ya cobrada (es parte de un pago ya registrado),
+  // nunca un monto pendiente — no se debe sumar al saldo a cobrar.
+  let interesAtrasoTotal = 0;
+  let interesListaTotal = 0;
+  for (const p of pagos) {
+    if (!p.interes) continue;
+    const { interesAtraso, interesLista } = parseNota(p.nota);
+    if (interesAtraso || interesLista) {
+      interesAtrasoTotal += interesAtraso;
+      interesListaTotal += interesLista;
+    } else {
+      interesAtrasoTotal += p.interes;
+    }
+  }
   const montoPagadoTotal = round2(base.monto_pagado_base + sumaPagos);
 
   const saldo = Math.max(0, round2(base.total_asignado - montoPagadoTotal));
@@ -256,6 +275,8 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
     pagos,
     montoPagadoTotal,
     interesTotal,
+    interesAtrasoTotal,
+    interesListaTotal,
     bonificacionTotal,
     saldo,
     montoCuota,

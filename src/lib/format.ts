@@ -27,24 +27,56 @@ export const SITUACION_STYLES: Record<string, string> = {
   "SIN PAGOS": "bg-neutral-200 text-neutral-700",
 };
 
-// --- Agrupar un pago dividido en varias formas de pago (ej.: una cuota pagada parte en
-// efectivo y parte por transferencia) ---
-// La tabla `pagos` no tiene una columna dedicada para esto, así que el ID de grupo se guarda
-// como un prefijo dentro de `nota` (invisible para el usuario: se saca siempre al mostrarla
-// con `parseNota`). Todas las líneas de un mismo cobro dividido comparten el mismo grupoId;
-// al anular una, se anulan todas juntas (ver DELETE /api/pagos).
-const GRUPO_PREFIJO = "⁣grp:"; // ⁣ = separador invisible, no se ve aunque no se filtre
-const GRUPO_REGEX = /^⁣grp:([a-zA-Z0-9-]+)⁣/;
+// --- Metadata escondida dentro de `nota` ---
+// La tabla `pagos` no tiene columnas para esto (no hay forma de hacer un ALTER TABLE desde acá),
+// así que se guarda como uno o más prefijos invisibles al principio de `nota`. Nunca se ve en
+// pantalla: `parseNota` siempre los saca antes de mostrar el texto real.
+//   1) grupoId: agrupa las líneas de un mismo cobro dividido en varias formas de pago (ej.:
+//      una cuota pagada parte en efectivo y parte por transferencia). Al anular una línea, se
+//      anulan todas las del grupo juntas (ver DELETE /api/pagos).
+//   2) desglose de interés: cuánto del `interes` guardado corresponde a "pago atrasado" y
+//      cuánto a "precio de lista" (recargo por no pagar en efectivo), para poder discriminarlos
+//      en las estadísticas del alumno. Pagos viejos (antes de este desglose) no lo tienen —
+//      quien los lea debe asumir que ese interés es 100% "pago atrasado", que era el único tipo
+//      de recargo que existía antes.
+const SEP = "⁣"; // U+2063 INVISIBLE SEPARATOR
+const GRUPO_REGEX = new RegExp(`^${SEP}grp:([a-zA-Z0-9-]+)${SEP}`);
+const INT_REGEX = new RegExp(`^${SEP}int:(-?[0-9.]+),(-?[0-9.]+)${SEP}`);
 
-export function construirNota(texto: string, grupoId?: string | null): string {
+export function construirNota(
+  texto: string,
+  opts?: { grupoId?: string | null; interesAtraso?: number; interesLista?: number }
+): string {
   const limpio = (texto || "").trim();
-  if (!grupoId) return limpio;
-  return `${GRUPO_PREFIJO}${grupoId}⁣${limpio}`;
+  let prefijo = "";
+  if (opts?.grupoId) prefijo += `${SEP}grp:${opts.grupoId}${SEP}`;
+  if (opts?.interesAtraso || opts?.interesLista) {
+    prefijo += `${SEP}int:${Math.round(opts.interesAtraso || 0)},${Math.round(opts.interesLista || 0)}${SEP}`;
+  }
+  return `${prefijo}${limpio}`;
 }
 
-export function parseNota(raw: string | null | undefined): { texto: string; grupoId: string | null } {
-  const s = raw || "";
-  const m = s.match(GRUPO_REGEX);
-  if (!m) return { texto: s, grupoId: null };
-  return { texto: s.slice(m[0].length), grupoId: m[1] };
+export function parseNota(raw: string | null | undefined): {
+  texto: string;
+  grupoId: string | null;
+  interesAtraso: number;
+  interesLista: number;
+} {
+  let s = raw || "";
+  let grupoId: string | null = null;
+  let interesAtraso = 0;
+  let interesLista = 0;
+
+  const mGrupo = s.match(GRUPO_REGEX);
+  if (mGrupo) {
+    grupoId = mGrupo[1];
+    s = s.slice(mGrupo[0].length);
+  }
+  const mInt = s.match(INT_REGEX);
+  if (mInt) {
+    interesAtraso = Number(mInt[1]) || 0;
+    interesLista = Number(mInt[2]) || 0;
+    s = s.slice(mInt[0].length);
+  }
+  return { texto: s, grupoId, interesAtraso, interesLista };
 }

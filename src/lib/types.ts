@@ -87,6 +87,11 @@ export type AlumnoComputed = AlumnoBase & {
   pagos: Pago[];
   montoPagadoTotal: number;
   interesTotal: number;
+  // Desglose de interesTotal: cuánto es por cuota vencida vs. por no pagar en efectivo
+  // (precio de lista). Ambos son SIEMPRE plata ya cobrada (nunca un monto pendiente) —
+  // ver computeAlumno en compute.ts.
+  interesAtrasoTotal: number;
+  interesListaTotal: number;
   saldo: number;
   montoCuota: number;
   cuotasPagadas: number;

@@ -82,25 +82,43 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
           />
         </div>
 
-        {(alumno.interesTotal > 0 || alumno.bonificacionTotal > 0) && (
+        {alumno.bonificacionTotal > 0 && (
           <p className="mt-3 text-xs text-neutral-500">
-            {alumno.interesTotal > 0 && <>Interés acumulado: {formatMoney(alumno.interesTotal)}. </>}
-            {alumno.bonificacionTotal > 0 && (
-              <>Bonificaciones otorgadas: {formatMoney(alumno.bonificacionTotal)}.</>
-            )}
+            Bonificaciones otorgadas: {formatMoney(alumno.bonificacionTotal)}.
           </p>
         )}
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {/*
+          Los 3 conceptos se muestran discriminados: Precio (lo que falta del precio base,
+          esto sí es un monto pendiente) / Interés por cuota vencida / Precio de lista. Los dos
+          recargos son SIEMPRE plata ya cobrada (quedaron registrados junto con un pago que ya
+          se hizo) — nunca se suman a "pendiente", y se marcan como "Cobrado" cuando hay monto.
+        */}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-emerald-700 p-4 text-white">
-            <p className="text-xs text-emerald-100">Saldo pendiente</p>
+            <p className="text-xs text-emerald-100">Precio — saldo pendiente</p>
             <p className="text-2xl font-bold">{formatMoney(alumno.saldo)}</p>
-          </div>
-          <div className="rounded-2xl bg-emerald-50 p-4">
-            <p className="text-xs text-emerald-700">Total a cobrar (saldo + interés)</p>
-            <p className="text-2xl font-bold text-emerald-900">
-              {formatMoney(alumno.saldo + alumno.interesTotal)}
+            <p className="mt-1 text-xs text-emerald-100">
+              {alumno.saldo > 0 ? "Pendiente de cobro" : "Pagado"}
             </p>
+          </div>
+          <div className="rounded-2xl bg-amber-50 p-4">
+            <p className="text-xs text-amber-700">Interés por cuota vencida</p>
+            <p className="text-2xl font-bold text-amber-900">
+              {formatMoney(alumno.interesAtrasoTotal)}
+            </p>
+            {alumno.interesAtrasoTotal > 0 && (
+              <p className="mt-1 text-xs text-amber-700">Ya cobrado</p>
+            )}
+          </div>
+          <div className="rounded-2xl bg-sky-50 p-4">
+            <p className="text-xs text-sky-700">Precio de lista (no efectivo)</p>
+            <p className="text-2xl font-bold text-sky-900">
+              {formatMoney(alumno.interesListaTotal)}
+            </p>
+            {alumno.interesListaTotal > 0 && (
+              <p className="mt-1 text-xs text-sky-700">Ya cobrado</p>
+            )}
           </div>
         </div>
       </Card>

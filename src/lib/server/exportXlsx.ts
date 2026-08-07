@@ -37,7 +37,8 @@ export async function buildExportBuffer(): Promise<Buffer> {
       Saldo: c.saldo,
       "Cuotas pagadas": c.cuotasPagadas,
       "Cuotas pendientes": c.cuotasPendientes,
-      "Interés acumulado": c.interesTotal,
+      "Interés por cuota vencida (cobrado)": c.interesAtrasoTotal,
+      "Precio de lista, no efectivo (cobrado)": c.interesListaTotal,
       Situación: c.situacion,
     };
   });

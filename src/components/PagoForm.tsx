@@ -51,6 +51,10 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
   const conAtraso = atrasado ? baseInteres * (1 + numAtraso / 100) : baseInteres;
   const conListaYAtraso = precioLista ? conAtraso * (1 + numLista / 100) : conAtraso;
   const interesMonto = Math.round(conListaYAtraso - baseInteres);
+  // Desglose de a cuánto corresponde cada recargo (se guarda escondido en la nota, ver
+  // construirNota) para poder discriminarlos después en las estadísticas del alumno.
+  const interesAtrasoMonto = Math.round(conAtraso - baseInteres);
+  const interesListaMonto = Math.round(conListaYAtraso - conAtraso);
   // % combinado real, solo para guardar como referencia (no se usa en ningún cálculo).
   const pctCombinado = baseInteres > 0 ? Math.round((interesMonto / baseInteres) * 1000) / 10 : 0;
   const totalReferencia = montoTotalIngresado + interesMonto;
@@ -126,7 +130,11 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
           interes: esUltima ? interesMonto : 0,
           interes_pct: esUltima ? pctCombinado : 0,
           bonificacion: esUltima ? bonif : 0,
-          nota: construirNota(esUltima ? nota : "", grupoId),
+          nota: construirNota(esUltima ? nota : "", {
+            grupoId,
+            interesAtraso: esUltima ? interesAtrasoMonto : 0,
+            interesLista: esUltima ? interesListaMonto : 0,
+          }),
         };
         const res = await fetch("/api/pagos", {
           method: "POST",
