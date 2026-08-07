@@ -156,13 +156,28 @@ export default function PagoGrupalForm({ colegio, integrantes, onRegistrado, onC
                 sinCuotas ? "opacity-40" : ""
               }`}
             >
-              <div className="min-w-[9rem] flex-1">
+              <div className="min-w-[11rem] flex-1">
                 <p className="text-sm font-medium text-neutral-800">{i.alumno.alumno}</p>
-                <p className="text-[11px] text-neutral-400">
-                  {sinCuotas
-                    ? "Sin cuotas tildadas"
-                    : `Cuota${i.cuotas.length > 1 ? "s" : ""} ${i.cuotas.map((c) => c.numero + "°").join(", ")}: ${formatMoney(calc?.base ?? 0)}`}
-                </p>
+                {sinCuotas ? (
+                  <p className="text-[11px] text-neutral-400">Sin cuotas tildadas</p>
+                ) : (
+                  <div className="mt-0.5 flex flex-wrap gap-1">
+                    {i.cuotas.map((c) => (
+                      <span
+                        key={c.numero}
+                        className={`rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
+                          c.estado === "vencida"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-sky-100 text-sky-700"
+                        }`}
+                        title={`Cuota ${c.numero}° — ${c.estado}`}
+                      >
+                        {c.numero}° {formatMoney(c.monto)}
+                        {c.estado === "vencida" ? " · Vencida" : ""}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <select
                 value={fila.forma}
