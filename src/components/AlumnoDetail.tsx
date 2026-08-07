@@ -195,9 +195,7 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
 
       <PagoForm
         alumnoId={alumno.alumno_id}
-        montosPendientes={alumno.cuotasPlan
-          .filter((c) => c.estado !== "pagada")
-          .map((c) => c.monto)}
+        cuotasPendientes={alumno.cuotasPlan.filter((c) => c.estado !== "pagada")}
         onRegistrado={onRegistrado}
       />
 
