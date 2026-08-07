@@ -9,6 +9,7 @@ import PendienteView from "./PendienteView";
 import CajaView from "./CajaView";
 import ProductosView from "./ProductosView";
 import CuotasView from "./CuotasView";
+import HistorialView from "./HistorialView";
 import UsuariosView from "./UsuariosView";
 import AuditoriaView from "./AuditoriaView";
 import NovedadesView, { NOVEDADES_SEEN_KEY } from "./NovedadesView";
@@ -157,6 +158,8 @@ export default function AppRoot({ usuario }: { usuario: SessionUsuario }) {
                 <ProductosView colegios={colegios} />
               ) : view === "cuotas" ? (
                 <CuotasView colegios={colegios} />
+              ) : view === "historial" ? (
+                <HistorialView />
               ) : view === "novedades" && verNovedades ? (
                 <NovedadesView onSeen={() => setNovedades(0)} />
               ) : view === "usuarios" && esAdmin ? (

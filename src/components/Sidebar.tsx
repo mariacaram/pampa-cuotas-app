@@ -9,6 +9,7 @@ export type View =
   | "caja"
   | "productos"
   | "cuotas"
+  | "historial"
   | "novedades"
   | "usuarios"
   | "auditoria";
@@ -25,8 +26,8 @@ const NOVEDADES_ITEM: Item = {
   ),
 };
 
-// Solo estas 5 tienen atajo numérico 1-5.
-export const VIEW_ORDER: View[] = ["tablero", "pendiente", "caja", "productos", "cuotas"];
+// Solo estas 6 tienen atajo numérico 1-6.
+export const VIEW_ORDER: View[] = ["tablero", "pendiente", "caja", "productos", "cuotas", "historial"];
 
 type Item = { key: View; label: string; icon: React.ReactNode };
 
@@ -80,6 +81,17 @@ const ITEMS: Item[] = [
       <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
         <rect x="3" y="5" width="18" height="14" rx="2" />
         <path d="M3 10h18M7 15h4" />
+      </svg>
+    ),
+  },
+  {
+    key: "historial",
+    label: "Historial de pagos",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+        <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+        <path d="M3 4v4h4" />
+        <path d="M12 8v4l3 2" />
       </svg>
     ),
   },
@@ -258,7 +270,7 @@ export default function Sidebar({
             Seguí pagos por colegio y descargá reportes para cada encargado.
           </p>
           <p className="mt-2 text-[11px] text-neutral-400">
-            Atajos: teclas <b>1–5</b> para navegar · <b>/</b> para buscar
+            Atajos: teclas <b>1–6</b> para navegar · <b>/</b> para buscar
           </p>
         </div>
       )}

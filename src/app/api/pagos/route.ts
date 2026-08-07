@@ -94,7 +94,21 @@ export async function DELETE(req: NextRequest) {
     // Si este pago es una de varias líneas de un mismo cobro dividido en distintas formas
     // de pago (ver PagoForm), tienen un grupoId compartido guardado en la nota. Anular una
     // línea anula TODAS las del grupo — es un solo cobro, no pagos independientes.
-    const { grupoId, loteId } = parseNota(pago.nota);
+    const { grupoId, loteId, usuarioEmail } = parseNota(pago.nota);
+
+    // Solo puede anular quien registró el cobro (o un admin). Sin esto, cualquier usuaria
+    // podría anular los cobros de otra — y el historial de cada una dejaría de ser confiable
+    // para cuadrar su caja. Los pagos viejos sin usuario asignado (de antes de que se
+    // guardara quién cobra) quedan solo para admins.
+    if (g.usuario && g.usuario.rol !== "admin") {
+      const esMio = (usuarioEmail || "").toLowerCase() === g.usuario.email.toLowerCase();
+      if (!esMio) {
+        return NextResponse.json(
+          { error: "Solo podés anular los cobros que registraste vos. Pedíselo a una administradora." },
+          { status: 403 }
+        );
+      }
+    }
     let aAnular = [pago];
     if (grupoId) {
       const todos = await repo.listPagos(pago.alumno_id);
