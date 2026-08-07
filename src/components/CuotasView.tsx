@@ -11,6 +11,8 @@ import NuevaVentaForm from "./NuevaVentaForm";
 import PagoGrupalForm from "./PagoGrupalForm";
 import LotesPanel from "./LotesPanel";
 
+const SELECCION_GRUPAL_KEY = "pampa_pago_grupal_seleccion";
+
 export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
   const [colegio, setColegio] = useState("");
 
@@ -36,6 +38,12 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
   const [modoGrupal, setModoGrupal] = useState(false);
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
   const [mostrarLotes, setMostrarLotes] = useState(false);
+  // La selección se guarda en sessionStorage para que sobreviva si Paulina se va a otra
+  // pantalla (ej. a chequear algo en Control de caja) y vuelve — sin esto, cambiar de vista
+  // desmonta CuotasView y se pierde todo lo tildado. Este ref evita que el efecto que guarda
+  // (más abajo) borre lo recién restaurado en su primera pasada, antes de que el estado
+  // restaurado termine de aplicarse.
+  const primerRenderGrupal = useRef(true);
 
   // Cuando venimos de la búsqueda global, queremos seleccionar ESTE alumno aunque
   // el efecto del colegio cargue su lista después.
@@ -98,6 +106,48 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
     loadAlumno(alumnoId);
   }, [alumnoId, loadAlumno]);
 
+  // Al montar, si había un pago grupal en curso (colegio + alumnos tildados) guardado en esta
+  // pestaña, lo restauramos — así volver desde otra pantalla no borra lo que ya se había
+  // seleccionado.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SELECCION_GRUPAL_KEY);
+      if (raw) {
+        const guardado = JSON.parse(raw) as { colegio: string; seleccionados: string[] };
+        if (guardado.colegio && guardado.seleccionados?.length) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setModoGrupal(true);
+          setColegio(guardado.colegio);
+          setSeleccionados(new Set(guardado.seleccionados));
+        }
+      }
+    } catch {
+      // ignorar (sessionStorage no disponible o dato corrupto)
+    }
+  }, []);
+
+  // Cada vez que cambia la selección del pago grupal, la guardamos (o la borramos si se vació
+  // o se salió del modo). Se salta la primera pasada (montaje) para no borrar lo que el efecto
+  // de arriba recién restauró — ese efecto todavía no se aplicó al estado en este mismo render.
+  useEffect(() => {
+    if (primerRenderGrupal.current) {
+      primerRenderGrupal.current = false;
+      return;
+    }
+    try {
+      if (modoGrupal && seleccionados.size > 0) {
+        sessionStorage.setItem(
+          SELECCION_GRUPAL_KEY,
+          JSON.stringify({ colegio, seleccionados: [...seleccionados] })
+        );
+      } else {
+        sessionStorage.removeItem(SELECCION_GRUPAL_KEY);
+      }
+    } catch {
+      // ignorar
+    }
+  }, [modoGrupal, seleccionados, colegio]);
+
   // Búsqueda global con debounce.
   useEffect(() => {
     if (q.trim().length < 2) {
@@ -149,6 +199,12 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
     });
   }
 
+  // Vacía la selección sin salir del modo grupal (para "empezar de nuevo" sin tener que
+  // cancelar y volver a entrar).
+  function deseleccionarTodo() {
+    setSeleccionados(new Set());
+  }
+
   function onPagoGrupalRegistrado() {
     setModoGrupal(false);
     setSeleccionados(new Set());
@@ -190,6 +246,25 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
       </div>
 
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+      {modoGrupal && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">
+          <span>
+            {seleccionados.size === 0
+              ? "Tildá abajo a los alumnos que están pagando juntos en este cobro grupal."
+              : `${seleccionados.size} alumno${seleccionados.size !== 1 ? "s" : ""} seleccionado${seleccionados.size !== 1 ? "s" : ""}. La selección se guarda sola aunque cambies de pantalla.`}
+          </span>
+          {seleccionados.size > 0 && (
+            <button
+              type="button"
+              onClick={deseleccionarTodo}
+              className="shrink-0 text-xs font-semibold text-emerald-700 underline hover:text-emerald-900"
+            >
+              Deseleccionar todo
+            </button>
+          )}
+        </div>
+      )}
 
       {mostrarLotes && <LotesPanel />}
 
@@ -274,12 +349,6 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
       {!modoGrupal && loadingAlumno && <p className="text-sm text-neutral-400">Cargando alumno…</p>}
       {!modoGrupal && !loadingAlumno && alumno && (
         <AlumnoDetail alumno={alumno} onRegistrado={() => loadAlumno(alumnoId)} />
-      )}
-
-      {modoGrupal && seleccionados.size === 0 && (
-        <p className="text-sm text-neutral-500">
-          Tildá abajo a los alumnos que están pagando juntos en este cobro grupal.
-        </p>
       )}
 
       {colegio && !loadingAlumnos && alumnos.length > 0 && (
