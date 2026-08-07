@@ -9,8 +9,21 @@ export type View =
   | "caja"
   | "productos"
   | "cuotas"
+  | "novedades"
   | "usuarios"
   | "auditoria";
+
+// Ítem "Novedades" (aviso de anulaciones). Se muestra solo a quien corresponde (ver AppRoot).
+const NOVEDADES_ITEM: Item = {
+  key: "novedades",
+  label: "Novedades",
+  icon: (
+    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
+      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.5 21a1.8 1.8 0 0 1-3 0" />
+    </svg>
+  ),
+};
 
 // Solo estas 5 tienen atajo numérico 1-5.
 export const VIEW_ORDER: View[] = ["tablero", "pendiente", "caja", "productos", "cuotas"];
@@ -151,11 +164,15 @@ export default function Sidebar({
   onChange,
   usuario,
   pendientes = 0,
+  mostrarNovedades = false,
+  novedades = 0,
 }: {
   view: View;
   onChange: (v: View) => void;
   usuario?: SessionUsuario;
   pendientes?: number;
+  mostrarNovedades?: boolean;
+  novedades?: number;
 }) {
   const esAdmin = usuario?.rol === "admin";
 
@@ -181,6 +198,15 @@ export default function Sidebar({
             numero={i + 1}
           />
         ))}
+
+        {mostrarNovedades && (
+          <NavButton
+            item={NOVEDADES_ITEM}
+            active={view === "novedades"}
+            onClick={() => onChange("novedades")}
+            badge={novedades}
+          />
+        )}
 
         {esAdmin && (
           <>

@@ -11,6 +11,10 @@ import ProductosView from "./ProductosView";
 import CuotasView from "./CuotasView";
 import UsuariosView from "./UsuariosView";
 import AuditoriaView from "./AuditoriaView";
+import NovedadesView, { NOVEDADES_SEEN_KEY } from "./NovedadesView";
+
+// Email que recibe el aviso de novedades (anulaciones) dentro de la app. Solo Paulina, por ahora.
+const EMAIL_NOVEDADES = "paulina.ferreyrab@gmail.com";
 
 function isTyping(el: EventTarget | null): boolean {
   const t = el as HTMLElement | null;
@@ -26,8 +30,10 @@ export default function AppRoot({ usuario }: { usuario: SessionUsuario }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendientes, setPendientes] = useState(0);
+  const [novedades, setNovedades] = useState(0);
   const reduce = useReducedMotion();
   const esAdmin = usuario?.rol === "admin";
+  const verNovedades = (usuario?.email || "").toLowerCase() === EMAIL_NOVEDADES;
 
   useEffect(() => {
     let cancel = false;
@@ -67,6 +73,25 @@ export default function AppRoot({ usuario }: { usuario: SessionUsuario }) {
     cargarPendientes();
   }, [esAdmin]);
 
+  // Cantidad de anulaciones nuevas (no vistas) para el puntito rojo de Novedades.
+  async function cargarNovedades() {
+    if (!verNovedades) return;
+    try {
+      const res = await fetch("/api/novedades");
+      if (!res.ok) return;
+      const d = await res.json();
+      const list = (d.anulaciones as { id: number }[]) ?? [];
+      const lastSeen = Number(localStorage.getItem(NOVEDADES_SEEN_KEY) || 0);
+      setNovedades(list.filter((a) => a.id > lastSeen).length);
+    } catch {
+      // ignorar
+    }
+  }
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+    cargarNovedades();
+  }, [verNovedades]);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -93,7 +118,14 @@ export default function AppRoot({ usuario }: { usuario: SessionUsuario }) {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar view={view} onChange={setView} usuario={usuario} pendientes={pendientes} />
+      <Sidebar
+        view={view}
+        onChange={setView}
+        usuario={usuario}
+        pendientes={pendientes}
+        mostrarNovedades={verNovedades}
+        novedades={novedades}
+      />
       <div className="flex-1 px-5 py-8 sm:px-8">
         <div className="mx-auto max-w-6xl">
           {error && (
@@ -125,6 +157,8 @@ export default function AppRoot({ usuario }: { usuario: SessionUsuario }) {
                 <ProductosView colegios={colegios} />
               ) : view === "cuotas" ? (
                 <CuotasView colegios={colegios} />
+              ) : view === "novedades" && verNovedades ? (
+                <NovedadesView onSeen={() => setNovedades(0)} />
               ) : view === "usuarios" && esAdmin ? (
                 <UsuariosView onChange={cargarPendientes} />
               ) : view === "auditoria" && esAdmin ? (
