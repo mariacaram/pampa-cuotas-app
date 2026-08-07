@@ -6,8 +6,11 @@ import { NuevoPago } from "@/lib/types";
 
 type Props = {
   alumnoId: string;
-  montoCuota: number;
-  cuotasRestantes: number;
+  // Monto de cada cuota TODAVÍA NO pagada, en orden (la vencida primero si la hay, después las
+  // pendientes). No siempre son todas iguales — el extra de un combo, un precio de colegio
+  // propio, o cuotas cargadas a mano pueden dejar la última cuota con un monto distinto — por
+  // eso "¿Cuántas cuotas paga?" suma estos montos reales en vez de multiplicar por un promedio.
+  montosPendientes: number[];
   onRegistrado: () => void;
 };
 
@@ -21,7 +24,7 @@ function nuevaLinea(forma: string): Linea {
   return { monto: "", forma, paraInteres: false };
 }
 
-export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegistrado }: Props) {
+export default function PagoForm({ alumnoId, montosPendientes, onRegistrado }: Props) {
   const [cantidadCuotas, setCantidadCuotas] = useState(1);
   const [lineas, setLineas] = useState<Linea[]>([nuevaLinea(FORMAS_DE_PAGO[0])]);
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
@@ -35,7 +38,10 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const baseCuotas = Math.round(cantidadCuotas * montoCuota);
+  // Suma los montos REALES de las próximas N cuotas pendientes (no siempre son todas iguales).
+  const seleccionCuotas = montosPendientes.slice(0, cantidadCuotas);
+  const baseCuotas = Math.round(seleccionCuotas.reduce((acc, m) => acc + m, 0));
+  const cuotasIguales = seleccionCuotas.every((m) => m === seleccionCuotas[0]);
   const montoTotalIngresado = lineas.reduce((acc, l) => acc + (Number(l.monto) || 0), 0);
 
   // Base de cálculo: SOLO la suma de las líneas con el tilde "aplicar recargo" activado.
@@ -60,13 +66,14 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
   const totalReferencia = montoTotalIngresado + interesMonto;
 
   const bonif = conBonificacion ? Number(bonificacion) || 0 : 0;
-  const maxCuotas = Math.max(1, cuotasRestantes || 1);
+  const maxCuotas = montosPendientes.length;
 
   function elegirCuotas(n: number) {
     setCantidadCuotas(n);
+    const suma = Math.round(montosPendientes.slice(0, n).reduce((acc, m) => acc + m, 0));
     setLineas((prev) => {
       const copia = [...prev];
-      copia[0] = { ...copia[0], monto: String(Math.round(n * montoCuota)) };
+      copia[0] = { ...copia[0], monto: String(suma) };
       return copia;
     });
   }
@@ -162,7 +169,7 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
     >
       <p className="text-sm font-semibold text-neutral-800">Registrar un pago</p>
 
-      {cuotasRestantes > 0 && montoCuota > 0 && (
+      {maxCuotas > 0 && (
         <div className="rounded-lg bg-emerald-50/60 p-3">
           <label className="block text-xs text-neutral-500">¿Cuántas cuotas paga?</label>
           <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -181,13 +188,21 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
               </button>
             ))}
             <span className="text-xs text-neutral-500">
-              {cantidadCuotas} cuota{cantidadCuotas > 1 ? "s" : ""} × {formatMoney(montoCuota)} ={" "}
-              <span className="font-semibold text-neutral-800">{formatMoney(baseCuotas)}</span>
+              {cantidadCuotas} cuota{cantidadCuotas > 1 ? "s" : ""}{" "}
+              {cuotasIguales && seleccionCuotas.length > 0 ? (
+                <>× {formatMoney(seleccionCuotas[0])} </>
+              ) : (
+                seleccionCuotas.length > 1 && (
+                  <>({seleccionCuotas.map((m) => formatMoney(m)).join(" + ")}) </>
+                )
+              )}
+              = <span className="font-semibold text-neutral-800">{formatMoney(baseCuotas)}</span>
             </span>
           </div>
           <p className="mt-1 text-xs text-neutral-400">
-            Autocompleta el monto sugerido en la primera línea. Podés editarlo abajo, o dividirlo
-            en varias formas de pago (ej.: una parte en efectivo y otra por transferencia).
+            Autocompleta el monto sugerido en la primera línea (suma el importe real de cada
+            cuota — no siempre son todas iguales). Podés editarlo abajo, o dividirlo en varias
+            formas de pago (ej.: una parte en efectivo y otra por transferencia).
           </p>
         </div>
       )}
