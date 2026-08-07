@@ -10,12 +10,12 @@ const ESTILO: Record<CuotaPlan["estado"], { base: string; activo: string }> = {
     activo: "ring-2 ring-red-500 bg-red-200",
   },
   pendiente: {
-    base: "bg-sky-100 text-sky-700 cursor-pointer hover:bg-sky-200",
-    activo: "ring-2 ring-sky-500 bg-sky-200",
+    base: "bg-amber-100 text-amber-700 cursor-pointer hover:bg-amber-200",
+    activo: "ring-2 ring-amber-500 bg-amber-200",
   },
 };
 
-// Fila de "píldoras", una por cuota: verde = pagada (no se toca), roja = vencida, celeste =
+// Fila de "píldoras", una por cuota: verde = pagada (no se toca), roja = vencida, amarilla =
 // pendiente. Clickeando una vencida o pendiente se tilda/destilda para pagarla ahora — así se
 // elige directo desde la fila del alumno, sin abrir su ficha.
 export default function CuotaChips({
