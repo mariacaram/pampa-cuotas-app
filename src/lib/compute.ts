@@ -1,4 +1,5 @@
 import { AlumnoBase, AlumnoComputed, CuotaPlan, Pago, Situacion } from "./types";
+import { PRECIOS_COLEGIO } from "./preciosColegio";
 
 function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -64,13 +65,22 @@ function comboDe(base: AlumnoBase): ComboId | null {
   return null;
 }
 
-// Monto de cuota del flyer para el combo/período/nº de cuotas, o null si no aplica.
-// Período: pedidos con fecha_orden >= 2026-07-01 usan JULIO; anteriores, ABRIL.
-function cuotaFlyer(base: AlumnoBase, nCuotas: number): number | null {
+// Montos de cuota candidatos para el combo/período/nº de cuotas, en orden de prioridad:
+// primero el precio REAL del colegio (PRECIOS_COLEGIO, derivado de lo que efectivamente pagó
+// la mayoría de sus alumnos), después el flyer nacional. Se prueban en ese orden porque un
+// mismo colegio puede tener alumnos que igual pagaron el precio nacional (una minoría dentro
+// del grupo) — si el local no encaja para ESE pedido puntual, hay que poder caer al nacional
+// antes de rendirse al reparto parejo.
+function cuotasCandidatas(base: AlumnoBase, nCuotas: number): number[] {
   const combo = comboDe(base);
-  if (!combo || nCuotas < 1 || nCuotas > 3) return null;
+  if (!combo || nCuotas < 1 || nCuotas > 3) return [];
   const esJulio = !!base.fecha_orden && base.fecha_orden >= "2026-07-01";
-  return (esJulio ? FLYER_JULIO : FLYER_ABRIL)[combo][nCuotas as 1 | 2 | 3];
+  const periodo = esJulio ? "J" : "A";
+  const key = `${(base.organizacion || "").trim().toLowerCase()}|||${combo}|||${periodo}|||${nCuotas}`;
+  const local = PRECIOS_COLEGIO[key];
+  const nacional = (esJulio ? FLYER_JULIO : FLYER_ABRIL)[combo][nCuotas as 1 | 2 | 3];
+  const candidatos = local !== undefined ? [local, nacional] : [nacional];
+  return [...new Set(candidatos)];
 }
 
 // La seña es el primer pago del pedido. Normalmente 10.000, pero puede ser mayor si el
@@ -89,11 +99,12 @@ function detectarSena(base: AlumnoBase): number {
     // descuenta las cuotas reales ya cobradas y lo que queda es la seña real.
     if (!esColegioEspecial(base)) {
       const nReales = (base.plan_cuotas > 0 ? base.plan_cuotas : 1) - 1;
-      const fc = cuotaFlyer(base, nReales);
-      if (fc !== null && nReales >= 1) {
-        const realesPagadas = Math.min(pagadas - 1, nReales);
-        const inferida = round2(pagado - fc * realesPagadas);
-        if (inferida > 0 && inferida <= base.total_asignado) return inferida;
+      if (nReales >= 1) {
+        for (const fc of cuotasCandidatas(base, nReales)) {
+          const realesPagadas = Math.min(pagadas - 1, nReales);
+          const inferida = round2(pagado - fc * realesPagadas);
+          if (inferida > 0 && inferida <= base.total_asignado) return inferida;
+        }
       }
     }
     // Fallback: si solo se pagó la seña, la tomamos directa (con tope para importados).
@@ -121,12 +132,12 @@ function montoCuotaRegular(base: AlumnoBase): number {
   if (plan >= 5) return round2(total / plan);
   const sena = detectarSena(base);
   const nReales = plan - 1;
-  // Colegios especiales: reparto parejo, sin flyer.
+  // Colegios especiales: reparto parejo, sin flyer/precio de colegio.
   if (!esColegioEspecial(base)) {
-    const fc = cuotaFlyer(base, nReales);
-    // Usamos el flyer solo si el total alcanza (extra >= 0); si no, repartimos parejo.
-    if (fc !== null && total >= sena + fc * nReales) {
-      return fc;
+    // Probamos cada candidato (precio de colegio primero, nacional después) y usamos el
+    // primero que el total alcance a cubrir (extra >= 0); si ninguno encaja, parejo.
+    for (const fc of cuotasCandidatas(base, nReales)) {
+      if (total >= sena + fc * nReales) return fc;
     }
   }
   return round2((total - sena) / nReales);
