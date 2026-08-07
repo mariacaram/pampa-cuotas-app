@@ -83,11 +83,24 @@ export async function DELETE(req: NextRequest) {
     // Si este pago es una de varias líneas de un mismo cobro dividido en distintas formas
     // de pago (ver PagoForm), tienen un grupoId compartido guardado en la nota. Anular una
     // línea anula TODAS las del grupo — es un solo cobro, no pagos independientes.
-    const { grupoId } = parseNota(pago.nota);
+    const { grupoId, loteId } = parseNota(pago.nota);
     let aAnular = [pago];
     if (grupoId) {
       const todos = await repo.listPagos(pago.alumno_id);
       aAnular = todos.filter((p) => parseNota(p.nota).grupoId === grupoId);
+    }
+
+    // Si es parte de un pago GRUPAL (varios alumnos distintos cobrados juntos, ver
+    // PagoGrupalForm), NO se anula en cascada: cada integrante se anula por separado sin tocar
+    // a los demás. Para que el historial quede específico, calculamos el total del lote (across
+    // todos los alumnos que comparten el loteId) antes y después de esta anulación puntual.
+    let loteTotalAntes: number | undefined;
+    let loteTotalDespues: number | undefined;
+    if (loteId) {
+      const todosLosPagos = await repo.listAllPagos();
+      const delLote = todosLosPagos.filter((p) => parseNota(p.nota).loteId === loteId);
+      loteTotalAntes = delLote.reduce((acc, p) => acc + (p.monto || 0) + (p.interes || 0), 0);
+      loteTotalDespues = loteTotalAntes - ((pago.monto || 0) + (pago.interes || 0));
     }
 
     for (const p of aAnular) {
@@ -97,10 +110,14 @@ export async function DELETE(req: NextRequest) {
         alumno: base?.alumno ?? null,
         colegio: base?.organizacion ?? null,
         monto: p.monto,
+        interes: p.interes,
         fecha: p.fecha,
         forma_de_pago: p.forma_de_pago,
         motivo,
         ...(aAnular.length > 1 ? { grupo_pagos: aAnular.length } : {}),
+        ...(loteId
+          ? { lote_id: loteId, lote_total_antes: loteTotalAntes, lote_total_despues: loteTotalDespues }
+          : {}),
       });
     }
 

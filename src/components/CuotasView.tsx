@@ -8,6 +8,8 @@ import AlumnoDetail from "./AlumnoDetail";
 import ColegioCombobox from "./ColegioCombobox";
 import AlumnoCombobox from "./AlumnoCombobox";
 import NuevaVentaForm from "./NuevaVentaForm";
+import PagoGrupalForm from "./PagoGrupalForm";
+import LotesPanel from "./LotesPanel";
 
 export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
   const [colegio, setColegio] = useState("");
@@ -28,6 +30,12 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
 
   // Alta de venta nueva.
   const [nuevaVenta, setNuevaVenta] = useState(false);
+
+  // Pago grupal: seleccionar varios alumnos del mismo colegio (ej. una institución que paga
+  // junta la cuota de varios chicos) y cargarles el pago a todos de una.
+  const [modoGrupal, setModoGrupal] = useState(false);
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [mostrarLotes, setMostrarLotes] = useState(false);
 
   // Cuando venimos de la búsqueda global, queremos seleccionar ESTE alumno aunque
   // el efecto del colegio cargue su lista después.
@@ -127,6 +135,27 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
     setAlumnoId(id);
   }
 
+  function toggleModoGrupal() {
+    setModoGrupal((v) => !v);
+    setSeleccionados(new Set());
+  }
+
+  function toggleSeleccionado(id: string) {
+    setSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function onPagoGrupalRegistrado() {
+    setModoGrupal(false);
+    setSeleccionados(new Set());
+    // Si el alumno abierto en la ficha era parte del lote, refrescamos su saldo.
+    if (alumnoId) loadAlumno(alumnoId);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -136,21 +165,48 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
             Buscá un alumno por nombre, o elegí colegio y alumno para ver su saldo y registrar pagos.
           </p>
         </div>
-        <button
-          onClick={() => setNuevaVenta((v) => !v)}
-          className="btn btn-primary rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-        >
-          {nuevaVenta ? "Cerrar" : "+ Nueva venta"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setMostrarLotes((v) => !v)}
+            className="btn rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"
+          >
+            {mostrarLotes ? "Ocultar pagos grupales" : "Ver pagos grupales"}
+          </button>
+          <button
+            onClick={toggleModoGrupal}
+            disabled={!colegio}
+            title={!colegio ? "Elegí primero un colegio" : undefined}
+            className="btn rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {modoGrupal ? "Cancelar pago grupal" : "Pago grupal"}
+          </button>
+          <button
+            onClick={() => setNuevaVenta((v) => !v)}
+            className="btn btn-primary rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            {nuevaVenta ? "Cerrar" : "+ Nueva venta"}
+          </button>
+        </div>
       </div>
 
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+      {mostrarLotes && <LotesPanel />}
 
       {nuevaVenta && (
         <NuevaVentaForm
           colegios={colegios}
           onCreada={(id, org) => seleccionarAlumno(id, org)}
           onCancel={() => setNuevaVenta(false)}
+        />
+      )}
+
+      {modoGrupal && seleccionados.size > 0 && (
+        <PagoGrupalForm
+          colegio={colegio}
+          alumnos={alumnos.filter((a) => seleccionados.has(a.alumno_id))}
+          onRegistrado={onPagoGrupalRegistrado}
+          onCancel={toggleModoGrupal}
         />
       )}
 
@@ -215,9 +271,15 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
         </p>
       </Card>
 
-      {loadingAlumno && <p className="text-sm text-neutral-400">Cargando alumno…</p>}
-      {!loadingAlumno && alumno && (
+      {!modoGrupal && loadingAlumno && <p className="text-sm text-neutral-400">Cargando alumno…</p>}
+      {!modoGrupal && !loadingAlumno && alumno && (
         <AlumnoDetail alumno={alumno} onRegistrado={() => loadAlumno(alumnoId)} />
+      )}
+
+      {modoGrupal && seleccionados.size === 0 && (
+        <p className="text-sm text-neutral-500">
+          Tildá abajo a los alumnos que están pagando juntos en este cobro grupal.
+        </p>
       )}
 
       {colegio && !loadingAlumnos && alumnos.length > 0 && (
@@ -231,6 +293,7 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-neutral-50 text-left text-xs text-neutral-500">
                 <tr>
+                  {modoGrupal && <th className="p-3"></th>}
                   <th className="p-3">Alumno</th>
                   <th className="p-3">Total</th>
                   <th className="p-3">Saldo (planilla)</th>
@@ -241,11 +304,29 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
                 {alumnos.map((a) => (
                   <tr
                     key={a.alumno_id}
-                    onClick={() => setAlumnoId(a.alumno_id)}
+                    onClick={() =>
+                      modoGrupal ? toggleSeleccionado(a.alumno_id) : setAlumnoId(a.alumno_id)
+                    }
                     className={`cursor-pointer border-t border-neutral-100 hover:bg-emerald-50/50 ${
-                      a.alumno_id === alumnoId ? "bg-emerald-50" : ""
+                      modoGrupal
+                        ? seleccionados.has(a.alumno_id)
+                          ? "bg-emerald-50"
+                          : ""
+                        : a.alumno_id === alumnoId
+                          ? "bg-emerald-50"
+                          : ""
                     }`}
                   >
+                    {modoGrupal && (
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={seleccionados.has(a.alumno_id)}
+                          onChange={() => toggleSeleccionado(a.alumno_id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
+                    )}
                     <td className="p-3">{a.alumno}</td>
                     <td className="p-3">{formatMoney(a.total_asignado)}</td>
                     <td className="p-3">{formatMoney(a.saldo_base)}</td>
