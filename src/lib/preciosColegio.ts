@@ -41,7 +41,13 @@ export const PRECIOS_COLEGIO: Record<string, number> = {
   "esc. cooperativismo argentino|||C4|||A|||3": 48667,
   "lib san martin aguilares|||C4|||J|||2": 73000,
   "lib san martin aguilares|||C4|||J|||3": 59000,
-  "los pinos|||C1|||A|||2": 47500,
+  // Corregido 2026-08-07 con foto real del "Editar combo" (Buzo+Chomba) de Los Pinos:
+  // 1 cuota=$90.000 (contado, no necesita entrada acá) · 2 cuotas=$116.000 (seña 10.000 +
+  // 106.000) · 3 cuotas=$105.000, reparto PAREJO real (35.000 c/u, sin seña de 10.000
+  // distinta) — verificado exacto contra el historial de pago real de 11/14 alumnos del
+  // colegio (incluye un pago parcial, Juarez Luca Samuel, que cierra justo con 35.000×2).
+  "los pinos|||C1|||A|||1": 106000,
+  "los pinos|||C1|||A|||2": 35000,
   "panama tt|||C1|||A|||1": 75000,
   "panama tt|||C1|||A|||3": 26667,
   "rep de panama|||C1|||A|||1": 75000,
