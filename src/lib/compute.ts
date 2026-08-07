@@ -46,17 +46,17 @@ const FLYER_ABRIL = {
 } as const;
 type ComboId = "C1" | "C2" | "C3" | "C4";
 
-// Identifica el combo del flyer a partir de los productos del pedido:
+// Identifica el combo del flyer a partir de las PRENDAS del pedido (ignora extras como
+// camiseta/bandera/chaleco/deporte, que pueden venir mezclados en los mismos 3 casilleros):
 //   C1 = buzo + chomba          C2 = campera + chomba
 //   C3 = buzo + chomba + babucha  C4 = campera + chomba + babucha
-// Si el pedido tiene extras (camiseta, bandera, etc.) o productos incompletos, devuelve
-// null (no es un combo "limpio" del flyer) y el cálculo cae al reparto parejo.
+// Si hay un extra sumado (ej. "CAMISETA | CAMPERA | CHOMBA"), el combo se identifica igual
+// (C2) — el costo del extra queda reflejado en el total y se absorbe en la última cuota,
+// nunca repartido (misma regla que un extra sin producto adicional). Si las prendas no arman
+// ninguno de los 4 combos (ej. una sola prenda suelta), devuelve null y cae al reparto parejo.
 function comboDe(base: AlumnoBase): ComboId | null {
   const items = [base.producto1, base.producto2, base.producto3].map((p) => (p || "").toUpperCase());
   const has = (w: string) => items.some((x) => x.includes(w));
-  if (has("CAMISETA") || has("BANDERA") || has("EXTRA") || has("CHALECO") || has("DEPORTE")) {
-    return null;
-  }
   const buzo = has("BUZO");
   const campera = has("CAMPERA");
   const chomba = has("CHOMBA");
@@ -68,22 +68,62 @@ function comboDe(base: AlumnoBase): ComboId | null {
   return null;
 }
 
-// Montos de cuota candidatos para el combo/período/nº de cuotas, en orden de prioridad:
-// primero el precio REAL del colegio (PRECIOS_COLEGIO — solo existe cuando ese precio es MENOR
-// al mínimo del flyer para el combo, es decir, un precio genuinamente distinto y negociado
-// aparte), después el flyer nacional. Nunca se guarda un precio de colegio que sea igual o mayor
-// al flyer: eso sería "flyer + un extra que compró la mayoría del grupo", y el extra SIEMPRE va
-// entero en la última cuota, nunca promediado entre todas (regla de Paulina).
+// Prenda suelta (un solo ítem, sin armar ninguno de los 4 combos): precio de CADA cuota,
+// derivado de los datos reales (no hay flyer publicado para esto). Solo se carga acá cuando
+// el monto es CLARAMENTE dominante en los pedidos reales (>=70% de coincidencia); si no,
+// se deja sin precio y el pedido cae al reparto parejo — no se adivina.
+// Clave: "<prenda>|||<periodo A|J>|||<cuotas reales 1-3>"
+const PRECIOS_PRENDA_SUELTA: Record<string, number> = {
+  // Campera sola: patrón muy consistente en los datos (2026-08-07).
+  "CAMPERA|||A|||1": 78000, // plan 2 cuotas: $88.000 en 98% de 66 pedidos
+  "CAMPERA|||A|||2": 43000, // plan 3 cuotas: $96.000 en 100% de 12 pedidos
+  "CAMPERA|||A|||3": 27333, // plan 4 cuotas: $92.000 en 100% de 2 pedidos (muestra chica)
+};
+
+// Prenda suelta identificada (un único ítem limpio, sin extras). null si no aplica.
+function prendaSueltaDe(base: AlumnoBase): string | null {
+  const items = [base.producto1, base.producto2, base.producto3]
+    .map((p) => (p || "").toUpperCase().trim())
+    .filter(Boolean);
+  if (items.length !== 1) return null;
+  const it = items[0];
+  if (it.includes("BUZO")) return "BUZO";
+  if (it.includes("CAMPERA")) return "CAMPERA";
+  if (it.includes("CHOMBA")) return "CHOMBA";
+  if (it.includes("BABUCHA")) return "BABUCHA";
+  return null;
+}
+
+// Montos de cuota candidatos para el período/nº de cuotas, en orden de prioridad:
+//  1. Precio de colegio (PRECIOS_COLEGIO — solo existe cuando es MENOR al mínimo del flyer
+//     para el combo, un precio genuinamente distinto y negociado aparte).
+//  2. Flyer nacional (para combos identificados por las prendas, con o sin extra sumado).
+//  3. Precio de prenda suelta (PRECIOS_PRENDA_SUELTA), si el pedido es un único ítem y hay
+//     un monto confiable detectado para esa prenda.
+// Nunca se guarda un precio de colegio igual o mayor al flyer: eso sería "flyer + un extra
+// que compró la mayoría del grupo", y el extra SIEMPRE va entero en la última cuota, nunca
+// promediado entre todas (regla de Paulina).
 function cuotasCandidatas(base: AlumnoBase, nCuotas: number): number[] {
-  const combo = comboDe(base);
-  if (!combo || nCuotas < 1 || nCuotas > 3) return [];
+  if (nCuotas < 1 || nCuotas > 3) return [];
   const esJulio = !!base.fecha_orden && base.fecha_orden >= "2026-07-01";
   const periodo = esJulio ? "J" : "A";
-  const key = `${(base.organizacion || "").trim().toLowerCase()}|||${combo}|||${periodo}|||${nCuotas}`;
-  const local = PRECIOS_COLEGIO[key];
-  const nacional = (esJulio ? FLYER_JULIO : FLYER_ABRIL)[combo][nCuotas as 1 | 2 | 3];
-  const candidatos = local !== undefined ? [local, nacional] : [nacional];
-  return [...new Set(candidatos)];
+
+  const combo = comboDe(base);
+  if (combo) {
+    const key = `${(base.organizacion || "").trim().toLowerCase()}|||${combo}|||${periodo}|||${nCuotas}`;
+    const local = PRECIOS_COLEGIO[key];
+    const nacional = (esJulio ? FLYER_JULIO : FLYER_ABRIL)[combo][nCuotas as 1 | 2 | 3];
+    return [...new Set(local !== undefined ? [local, nacional] : [nacional])];
+  }
+
+  const prenda = prendaSueltaDe(base);
+  if (prenda) {
+    const pkey = `${prenda}|||${periodo}|||${nCuotas}`;
+    const precio = PRECIOS_PRENDA_SUELTA[pkey];
+    if (precio !== undefined) return [precio];
+  }
+
+  return [];
 }
 
 // La seña es el primer pago del pedido. Normalmente 10.000, pero puede ser mayor si el
