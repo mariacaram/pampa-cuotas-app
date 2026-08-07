@@ -11,10 +11,14 @@ type Props = {
   onRegistrado: () => void;
 };
 
-type Linea = { monto: string; forma: string };
+// Cada línea es un monto + una forma de pago. `paraInteres` es el tilde que decide si ESE
+// monto entra en la base sobre la que se calculan los recargos (útil cuando se divide un
+// cobro: ej. el recargo por "no efectivo" solo debería aplicar a la parte en transferencia,
+// no a la parte en efectivo).
+type Linea = { monto: string; forma: string; paraInteres: boolean };
 
 function nuevaLinea(forma: string): Linea {
-  return { monto: "", forma };
+  return { monto: "", forma, paraInteres: false };
 }
 
 export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegistrado }: Props) {
@@ -22,20 +26,35 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
   const [lineas, setLineas] = useState<Linea[]>([nuevaLinea(FORMAS_DE_PAGO[0])]);
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [atrasado, setAtrasado] = useState(false);
-  const [interesPct, setInteresPct] = useState("");
+  const [pctAtraso, setPctAtraso] = useState("");
+  const [precioLista, setPrecioLista] = useState(false);
+  const [pctLista, setPctLista] = useState("");
   const [conBonificacion, setConBonificacion] = useState(false);
   const [bonificacion, setBonificacion] = useState("");
   const [nota, setNota] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const pct = Number(interesPct) || 0;
   const baseCuotas = Math.round(cantidadCuotas * montoCuota);
-  // El interés se calcula sobre la SUMA de lo cargado en todas las líneas (lo realmente
-  // cobrado), no sobre el valor sugerido de la cuota.
   const montoTotalIngresado = lineas.reduce((acc, l) => acc + (Number(l.monto) || 0), 0);
-  const interesMonto = atrasado ? Math.round(montoTotalIngresado * (pct / 100)) : 0;
+
+  // Base de cálculo: SOLO la suma de las líneas con el tilde "aplicar recargo" activado.
+  const baseInteres = lineas.reduce(
+    (acc, l) => acc + (l.paraInteres ? Number(l.monto) || 0 : 0),
+    0
+  );
+  // Los dos recargos se aplican EN CADENA, no por separado: primero el de atraso sobre la
+  // base, y sobre ESE resultado (no sobre la base original) el de precio de lista. Los dos
+  // son opcionales — si no se tilda ninguno, no se cobra ningún recargo.
+  const numAtraso = Number(pctAtraso) || 0;
+  const numLista = Number(pctLista) || 0;
+  const conAtraso = atrasado ? baseInteres * (1 + numAtraso / 100) : baseInteres;
+  const conListaYAtraso = precioLista ? conAtraso * (1 + numLista / 100) : conAtraso;
+  const interesMonto = Math.round(conListaYAtraso - baseInteres);
+  // % combinado real, solo para guardar como referencia (no se usa en ningún cálculo).
+  const pctCombinado = baseInteres > 0 ? Math.round((interesMonto / baseInteres) * 1000) / 10 : 0;
   const totalReferencia = montoTotalIngresado + interesMonto;
+
   const bonif = conBonificacion ? Number(bonificacion) || 0 : 0;
   const maxCuotas = Math.max(1, cuotasRestantes || 1);
 
@@ -48,8 +67,8 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
     });
   }
 
-  function actualizarLinea(i: number, campo: keyof Linea, valor: string) {
-    setLineas((prev) => prev.map((l, idx) => (idx === i ? { ...l, [campo]: valor } : l)));
+  function actualizarLinea(i: number, cambios: Partial<Linea>) {
+    setLineas((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...cambios } : l)));
   }
 
   function agregarLinea() {
@@ -66,10 +85,12 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
   function resetForm() {
     setLineas([nuevaLinea(FORMAS_DE_PAGO[0])]);
     setCantidadCuotas(1);
-    setInteresPct("");
+    setPctAtraso("");
+    setPctLista("");
     setBonificacion("");
     setNota("");
     setAtrasado(false);
+    setPrecioLista(false);
     setConBonificacion(false);
   }
 
@@ -89,8 +110,8 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
     setSaving(true);
     try {
       // Cada línea (monto + forma de pago) se registra como un pago aparte, para que quede
-      // discriminado en Control de caja cuánto entró por cada medio. El interés y la
-      // bonificación (si corresponden) se cargan en la última línea, junto con la nota.
+      // discriminado en Control de caja cuánto entró por cada medio. El interés (recargos
+      // combinados) y la bonificación se cargan en la última línea, junto con la nota.
       // Si hay más de una línea, comparten un ID de grupo (guardado dentro de la nota, ver
       // construirNota) para poder anularlas todas juntas más adelante — es un solo cobro
       // dividido, no pagos independientes.
@@ -103,7 +124,7 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
           monto: lineasValidas[i].monto,
           forma_de_pago: lineasValidas[i].forma,
           interes: esUltima ? interesMonto : 0,
-          interes_pct: esUltima && atrasado ? pct : 0,
+          interes_pct: esUltima ? pctCombinado : 0,
           bonificacion: esUltima ? bonif : 0,
           nota: construirNota(esUltima ? nota : "", grupoId),
         };
@@ -167,20 +188,20 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
       <div className="space-y-2">
         <label className="block text-xs text-neutral-500">Monto cobrado y forma de pago</label>
         {lineas.map((linea, i) => (
-          <div key={i} className="flex items-center gap-2">
+          <div key={i} className="flex flex-wrap items-center gap-2">
             <input
               type="number"
               min={0}
               step="any"
               value={linea.monto}
-              onChange={(e) => actualizarLinea(i, "monto", e.target.value)}
+              onChange={(e) => actualizarLinea(i, { monto: e.target.value })}
               className="w-full rounded-md border border-neutral-300 p-2 text-sm sm:max-w-[10rem]"
               placeholder="0"
             />
             <select
               value={linea.forma}
-              onChange={(e) => actualizarLinea(i, "forma", e.target.value)}
-              className="w-full rounded-md border border-neutral-300 p-2 text-sm"
+              onChange={(e) => actualizarLinea(i, { forma: e.target.value })}
+              className="w-full rounded-md border border-neutral-300 p-2 text-sm sm:max-w-[10rem]"
             >
               {FORMAS_DE_PAGO.map((f) => (
                 <option key={f} value={f}>
@@ -188,6 +209,14 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
                 </option>
               ))}
             </select>
+            <label className="flex items-center gap-1.5 text-xs text-neutral-500" title="Este monto se suma a la base sobre la que se calculan los recargos de abajo">
+              <input
+                type="checkbox"
+                checked={linea.paraInteres}
+                onChange={(e) => actualizarLinea(i, { paraInteres: e.target.checked })}
+              />
+              Aplicar recargo a este monto
+            </label>
             {lineas.length > 1 && (
               <button
                 type="button"
@@ -225,33 +254,70 @@ export default function PagoForm({ alumnoId, montoCuota, cuotasRestantes, onRegi
         />
       </div>
 
-      {/* Interés por atraso (como %) */}
+      {/* Recargos: atraso y precio de lista (no efectivo). Los dos son opcionales — a veces
+          no se cobra esa diferencia — y si se tildan los dos, se aplican en cadena: primero
+          atraso, después precio de lista sobre ese resultado. */}
       <div className="rounded-lg bg-neutral-50 p-3">
+        <p className="mb-2 text-xs font-semibold text-neutral-600">
+          Recargos (opcionales, se aplican sobre las líneas tildadas &quot;Aplicar recargo&quot;)
+        </p>
+
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={atrasado} onChange={(e) => setAtrasado(e.target.checked)} />
           Pago atrasado — aplicar interés (%)
         </label>
         {atrasado && (
-          <div className="mt-2 flex flex-wrap items-end gap-4">
-            <div>
-              <label className="block text-xs text-neutral-500">Interés (%)</label>
-              <input
-                type="number"
-                min={0}
-                step="any"
-                value={interesPct}
-                onChange={(e) => setInteresPct(e.target.value)}
-                className="mt-1 w-28 rounded-md border border-neutral-300 p-2 text-sm"
-                placeholder="0"
-              />
-            </div>
-            <div className="text-xs text-neutral-600">
-              <p>Monto cobrado: {formatMoney(montoTotalIngresado)}</p>
-              <p>Interés ({pct}%): {formatMoney(interesMonto)}</p>
-              <p className="font-semibold text-emerald-800">
-                Total de referencia: {formatMoney(totalReferencia)}
+          <div className="mb-3 mt-1 pl-6">
+            <input
+              type="number"
+              min={0}
+              step="any"
+              value={pctAtraso}
+              onChange={(e) => setPctAtraso(e.target.value)}
+              className="w-28 rounded-md border border-neutral-300 p-2 text-sm"
+              placeholder="0"
+            />
+          </div>
+        )}
+
+        <label className="mt-2 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={precioLista}
+            onChange={(e) => setPrecioLista(e.target.checked)}
+          />
+          No pagó en efectivo — aplicar precio de lista (%)
+        </label>
+        {precioLista && (
+          <div className="mt-1 pl-6">
+            <input
+              type="number"
+              min={0}
+              step="any"
+              value={pctLista}
+              onChange={(e) => setPctLista(e.target.value)}
+              className="w-28 rounded-md border border-neutral-300 p-2 text-sm"
+              placeholder="0"
+            />
+          </div>
+        )}
+
+        {(atrasado || precioLista) && (
+          <div className="mt-3 border-t border-neutral-200 pt-2 text-xs text-neutral-600">
+            <p>Monto con recargo ({formatMoney(baseInteres)}):</p>
+            {atrasado && <p>&nbsp;&nbsp;+ Atraso ({numAtraso}%): {formatMoney(baseInteres * (numAtraso / 100))}</p>}
+            {precioLista && (
+              <p>&nbsp;&nbsp;+ Precio de lista ({numLista}%, sobre el monto ya con atraso): {formatMoney(conAtraso * (numLista / 100))}</p>
+            )}
+            <p>Recargo total: {formatMoney(interesMonto)}</p>
+            <p className="font-semibold text-emerald-800">
+              Total de referencia (todas las líneas + recargo): {formatMoney(totalReferencia)}
+            </p>
+            {baseInteres === 0 && (
+              <p className="mt-1 text-amber-600">
+                Ningún monto tiene tildado &quot;Aplicar recargo&quot; — no se va a cobrar nada extra.
               </p>
-            </div>
+            )}
           </div>
         )}
       </div>
