@@ -13,23 +13,103 @@ const SENA_DEFAULT = 10000;
 // Un primer pago mayor se toma como un anticipo, no como la seña.
 const SENA_TOPE = 25000;
 
-// La seña es el primer pago del pedido. Por defecto 10.000. Si el pedido pagó SOLO la seña
-// (cuotas_pagadas_base === 1), la tomamos de lo pagado (con tope 25k para datos importados;
-// sin tope para ventas de la app, donde la seña la fija el usuario). NO se usan precios de flyer.
+// Colegios con arreglo / precio ESPECIAL (negociado aparte): NO usan la lista del flyer.
+// Para ellos la cuota se reparte parejo: (total − seña) / cuotas reales.
+// Agregá acá el nombre EXACTO del colegio (como figura en organizacion) para sumar excepciones.
+const COLEGIOS_ESPECIALES = new Set<string>([
+  "santa rosa",
+]);
+function esColegioEspecial(base: AlumnoBase): boolean {
+  return COLEGIOS_ESPECIALES.has((base.organizacion || "").trim().toLowerCase());
+}
+
+// Precios del flyer: monto de CADA cuota, por combo y cantidad de cuotas reales (Opción 1/2/3).
+// Hay dos listas porque los precios cambiaron: los pedidos desde el 1/7/2026 usan JULIO;
+// los anteriores, ABRIL.
+const FLYER_JULIO = {
+  C1: { 1: 95000, 2: 54000, 3: 43000 },
+  C2: { 1: 108000, 2: 61000, 3: 52000 },
+  C3: { 1: 132000, 2: 74000, 3: 59000 },
+  C4: { 1: 145000, 2: 78000, 3: 64000 },
+} as const;
+const FLYER_ABRIL = {
+  C1: { 1: 95000, 2: 49000, 3: 38000 },
+  C2: { 1: 108000, 2: 56000, 3: 47000 },
+  C3: { 1: 132000, 2: 69000, 3: 54000 },
+  C4: { 1: 145000, 2: 73000, 3: 59000 },
+} as const;
+type ComboId = "C1" | "C2" | "C3" | "C4";
+
+// Identifica el combo del flyer a partir de los productos del pedido:
+//   C1 = buzo + chomba          C2 = campera + chomba
+//   C3 = buzo + chomba + babucha  C4 = campera + chomba + babucha
+// Si el pedido tiene extras (camiseta, bandera, etc.) o productos incompletos, devuelve
+// null (no es un combo "limpio" del flyer) y el cálculo cae al reparto parejo.
+function comboDe(base: AlumnoBase): ComboId | null {
+  const items = [base.producto1, base.producto2, base.producto3].map((p) => (p || "").toUpperCase());
+  const has = (w: string) => items.some((x) => x.includes(w));
+  if (has("CAMISETA") || has("BANDERA") || has("EXTRA") || has("CHALECO") || has("DEPORTE")) {
+    return null;
+  }
+  const buzo = has("BUZO");
+  const campera = has("CAMPERA");
+  const chomba = has("CHOMBA");
+  const babucha = has("BABUCHA");
+  if (buzo && chomba && !campera && !babucha) return "C1";
+  if (campera && chomba && !buzo && !babucha) return "C2";
+  if (buzo && chomba && babucha && !campera) return "C3";
+  if (campera && chomba && babucha && !buzo) return "C4";
+  return null;
+}
+
+// Monto de cuota del flyer para el combo/período/nº de cuotas, o null si no aplica.
+// Período: pedidos con fecha_orden >= 2026-07-01 usan JULIO; anteriores, ABRIL.
+function cuotaFlyer(base: AlumnoBase, nCuotas: number): number | null {
+  const combo = comboDe(base);
+  if (!combo || nCuotas < 1 || nCuotas > 3) return null;
+  const esJulio = !!base.fecha_orden && base.fecha_orden >= "2026-07-01";
+  return (esJulio ? FLYER_JULIO : FLYER_ABRIL)[combo][nCuotas as 1 | 2 | 3];
+}
+
+// La seña es el primer pago del pedido. Normalmente 10.000, pero puede ser mayor si el
+// pedido tenía un extra (el extra a veces se cobra en la seña, no en una cuota).
+// La deducimos de lo REALMENTE pagado, para no adivinar dónde quedó el extra:
+//   seña = pagado − (cuotas reales ya pagadas × cuota del flyer)
+// Ej: pagó 96.000 en 3 cuotas de un Combo1 abril (cuota 38.000) → seña = 96.000 − 38.000×2 = 20.000.
 function detectarSena(base: AlumnoBase): number {
+  // Ventas cargadas desde la app (nro_orden "APP-…"): la seña la fijó el usuario,
+  // así que la tomamos exacta (sin el tope, que es solo para datos importados).
   const esApp = (base.nro_orden || "").startsWith("APP-");
-  if (base.cuotas_pagadas_base === 1 && base.monto_pagado_base > 0) {
-    if (esApp) return base.monto_pagado_base;
-    if (base.monto_pagado_base <= SENA_TOPE) return base.monto_pagado_base;
+  const pagadas = base.cuotas_pagadas_base;
+  const pagado = base.monto_pagado_base;
+  if (pagadas >= 1 && pagado > 0) {
+    // Deducir la seña de lo pagado con el precio del flyer (solo colegios NO especiales):
+    // descuenta las cuotas reales ya cobradas y lo que queda es la seña real.
+    if (!esColegioEspecial(base)) {
+      const nReales = (base.plan_cuotas > 0 ? base.plan_cuotas : 1) - 1;
+      const fc = cuotaFlyer(base, nReales);
+      if (fc !== null && nReales >= 1) {
+        const realesPagadas = Math.min(pagadas - 1, nReales);
+        const inferida = round2(pagado - fc * realesPagadas);
+        if (inferida > 0 && inferida <= base.total_asignado) return inferida;
+      }
+    }
+    // Fallback: si solo se pagó la seña, la tomamos directa (con tope para importados).
+    if (pagadas === 1) {
+      if (esApp) return pagado;
+      if (pagado <= SENA_TOPE) return pagado;
+    }
   }
   return SENA_DEFAULT;
 }
 
-// Monto de la cuota regular (la que se repite en el plan): reparto PAREJO.
+// Monto de la cuota regular (la que se repite en el plan). Prioriza el precio del flyer:
 //  - plan_cuotas <= 1  -> contado: la "cuota" es el total.
-//  - plan_cuotas >= 5  -> cuotas iguales (total / n).
-//  - plan_cuotas 2-4   -> lo que queda después de la seña, repartido en partes iguales entre
-//    las cuotas reales: (total − seña) / (plan − 1). NO se usan precios de flyer acá.
+//  - plan_cuotas >= 5  -> plan más largo que el flyer: cuotas iguales (total / n).
+//  - plan_cuotas 2-4   -> si el combo es identificable y el total alcanza, se usa la cuota
+//    EXACTA del flyer (el extra que sobra se cobra entero en la última cuota, nunca repartido).
+//    Si no hay combo (extras/incompletos) o el total no alcanza, se reparte lo que queda tras
+//    la seña en partes iguales (fallback seguro que siempre cierra con el total).
 // OJO: plan_cuotas cuenta la seña como 1ª cuota, así que las cuotas reales son plan_cuotas - 1.
 function montoCuotaRegular(base: AlumnoBase): number {
   const total = base.total_asignado;
@@ -38,7 +118,16 @@ function montoCuotaRegular(base: AlumnoBase): number {
   if (plan <= 1) return round2(total);
   if (plan >= 5) return round2(total / plan);
   const sena = detectarSena(base);
-  return round2((total - sena) / (plan - 1));
+  const nReales = plan - 1;
+  // Colegios especiales: reparto parejo, sin flyer.
+  if (!esColegioEspecial(base)) {
+    const fc = cuotaFlyer(base, nReales);
+    // Usamos el flyer solo si el total alcanza (extra >= 0); si no, repartimos parejo.
+    if (fc !== null && total >= sena + fc * nReales) {
+      return fc;
+    }
+  }
+  return round2((total - sena) / nReales);
 }
 
 // Recalcula los totales de un alumno a partir de sus datos base + los pagos nuevos.
@@ -132,11 +221,11 @@ function buildCuotasPlan(
     if (k <= cuotasPagadas) estado = "pagada";
     else if (venc && venc.getTime() <= hoy) estado = "vencida";
     else estado = "pendiente";
-    // Reparto PAREJO del plan (todas las cuotas reales iguales; suman EXACTO el total):
+    // Reparto del plan (el extra NUNCA se reparte: va entero en la última cuota):
     //  - contado (1 cuota): la cuota es el total.
     //  - plan largo (>=5): todas iguales (la última absorbe el redondeo).
-    //  - plan 2-4: 1ª = seña; el resto = (total − seña)/(plan−1) parejo (la última absorbe
-    //    cualquier redondeo, para que la suma cierre exacta).
+    //  - plan 2-4: 1ª = seña; intermedias = cuota del flyer (montoCuota); última = lo que
+    //    resta (la cuota del flyer + el extra). Siempre suman EXACTO el total.
     let monto: number;
     if (cuotas <= 1) monto = total;
     else if (base.plan_cuotas >= 5) monto = k < cuotas ? montoCuota : round2(total - montoCuota * (cuotas - 1));
