@@ -18,6 +18,8 @@ const SENA_TOPE = 25000;
 // Agregá acá el nombre EXACTO del colegio (como figura en organizacion) para sumar excepciones.
 const COLEGIOS_ESPECIALES = new Set<string>([
   "santa rosa",
+  "27 nueva concepcion",
+  "27 maria del rosario",
 ]);
 function esColegioEspecial(base: AlumnoBase): boolean {
   return COLEGIOS_ESPECIALES.has((base.organizacion || "").trim().toLowerCase());
