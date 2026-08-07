@@ -214,14 +214,16 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
         ) : (
           <Card className="p-0">
             <div className="thin-scroll overflow-x-auto">
-            <table className="w-full min-w-[46rem] text-sm">
+            <table className="w-full min-w-[58rem] text-sm">
               <thead className="bg-neutral-50 text-left text-xs text-neutral-500">
                 <tr>
                   <th className="p-3">Fecha</th>
                   <th className="p-3">Total pagado</th>
                   <th className="p-3">Cuota</th>
-                  <th className="p-3">Forma</th>
                   <th className="p-3">Interés</th>
+                  <th className="p-3">Int. cuota vencida</th>
+                  <th className="p-3">Int. no efectivo</th>
+                  <th className="p-3">Forma</th>
                   <th className="p-3">Bonificación</th>
                   <th className="p-3">Nota</th>
                   <th className="p-3"></th>
@@ -279,7 +281,7 @@ function PagoRow({
   onMotivo: (v: string) => void;
   onConfirm: () => void;
 }) {
-  const { texto: notaVisible } = parseNota(p.nota);
+  const { texto: notaVisible, interesAtraso, interesLista } = parseNota(p.nota);
   const esDividido = hermanos.length > 0;
   const totalGrupo = esDividido ? p.monto + hermanos.reduce((acc, h) => acc + h.monto, 0) : p.monto;
   return (
@@ -295,10 +297,12 @@ function PagoRow({
           )}
         </td>
         <td className="p-3">{formatMoney(p.monto)}</td>
-        <td className="p-3">{p.forma_de_pago}</td>
         <td className="p-3">
           {p.interes ? `${formatMoney(p.interes)}${p.interes_pct ? ` (${p.interes_pct}%)` : ""}` : "—"}
         </td>
+        <td className="p-3 text-amber-700">{interesAtraso ? formatMoney(interesAtraso) : "—"}</td>
+        <td className="p-3 text-sky-700">{interesLista ? formatMoney(interesLista) : "—"}</td>
+        <td className="p-3">{p.forma_de_pago}</td>
         <td className="p-3">{p.bonificacion ? formatMoney(p.bonificacion) : "—"}</td>
         <td className="p-3 text-neutral-500">{notaVisible || "—"}</td>
         <td className="p-3 text-right">
@@ -314,7 +318,7 @@ function PagoRow({
       </tr>
       {anulando && (
         <tr className="bg-red-50/50">
-          <td colSpan={8} className="p-3">
+          <td colSpan={10} className="p-3">
             <p className="mb-2 text-xs font-semibold text-red-700">
               {esDividido
                 ? `Este cobro se dividió en ${hermanos.length + 1} formas de pago (total ${formatMoney(totalGrupo)}) — al anular, se anulan TODAS juntas. Indicá el motivo:`

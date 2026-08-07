@@ -18,7 +18,10 @@ const SELECCION_GRUPAL_KEY = "pampa_pago_grupal_seleccion";
 export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
   const [colegio, setColegio] = useState("");
 
-  const [alumnos, setAlumnos] = useState<AlumnoBase[]>([]);
+  // AlumnoComputed (no AlumnoBase): saldo/situación EN VIVO, con los pagos de la app ya
+  // aplicados — así la lista queda consistente con la ficha de cada alumno apenas se confirma
+  // un pago (antes mostraba saldo_base/situacion_base, la foto de la planilla, sin actualizar).
+  const [alumnos, setAlumnos] = useState<AlumnoComputed[]>([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
   const [alumnoId, setAlumnoId] = useState("");
 
@@ -81,7 +84,7 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
         if (!res.ok) throw new Error(data.error || "Error cargando alumnos");
         setAlumnos(data.alumnos);
         const wanted = desiredAlumno.current;
-        if (wanted && data.alumnos.some((a: AlumnoBase) => a.alumno_id === wanted)) {
+        if (wanted && data.alumnos.some((a: AlumnoComputed) => a.alumno_id === wanted)) {
           setAlumnoId(wanted);
         } else if (!wanted) {
           setAlumnoId(data.alumnos[0]?.alumno_id ?? "");
@@ -259,9 +262,25 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
 
   // Refresca la ficha del alumno abierto Y el resumen del colegio (cambian saldo/total
   // cobrado) — usar después de registrar o anular cualquier pago.
+  // Vuelve a pedir la lista de "Alumnos de {colegio}" (saldo/situación en vivo) — sin esto,
+  // después de registrar un pago la lista seguía mostrando el saldo viejo hasta cambiar de
+  // colegio y volver.
+  async function refrescarListaAlumnos() {
+    if (!colegio) return;
+    try {
+      const res = await fetch(`/api/alumnos?organizacion=${encodeURIComponent(colegio)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error cargando alumnos");
+      setAlumnos(data.alumnos);
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    }
+  }
+
   function refrescarAlumnoYResumen() {
     if (alumnoId) loadAlumno(alumnoId);
     setResumenKey((k) => k + 1);
+    refrescarListaAlumnos();
   }
 
   function onPagoGrupalRegistrado() {
@@ -456,7 +475,7 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
                   ) : (
                     <>
                       <th className="p-3">Total</th>
-                      <th className="p-3">Saldo (planilla)</th>
+                      <th className="p-3">Saldo</th>
                       <th className="p-3">Situación</th>
                     </>
                   )}
@@ -489,9 +508,9 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
                     ) : (
                       <>
                         <td className="p-3">{formatMoney(a.total_asignado)}</td>
-                        <td className="p-3">{formatMoney(a.saldo_base)}</td>
+                        <td className="p-3">{formatMoney(a.saldo)}</td>
                         <td className="p-3">
-                          <SituacionPill situacion={a.situacion_base} />
+                          <SituacionPill situacion={a.situacion} />
                         </td>
                       </>
                     )}
