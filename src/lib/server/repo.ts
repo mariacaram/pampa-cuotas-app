@@ -13,6 +13,13 @@ export interface Repo {
   getPago(pagoId: number | string): Promise<Pago | null>;
   deletePago(pagoId: number | string): Promise<void>;
   addAlumno(venta: NuevaVenta): Promise<AlumnoBase>;
+  // Corrige el total/plan de un alumno YA cargado (columnas existentes, sin cambio de
+  // esquema) — usado al cargar importes de cuota a mano, para que total_asignado y
+  // plan_cuotas queden consistentes con lo que Paulina tipeó.
+  updateAlumnoTotales(
+    alumnoId: string,
+    cambios: { plan_cuotas: number; total_asignado: number }
+  ): Promise<void>;
   listAllAlumnos(): Promise<AlumnoBase[]>;
   listAllPagos(): Promise<Pago[]>;
   source: "supabase" | "local";

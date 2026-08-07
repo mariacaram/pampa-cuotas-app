@@ -10,6 +10,7 @@ import AlumnoCombobox from "./AlumnoCombobox";
 import NuevaVentaForm from "./NuevaVentaForm";
 import PagoGrupalForm from "./PagoGrupalForm";
 import LotesPanel from "./LotesPanel";
+import ColegioResumen from "./ColegioResumen";
 
 const SELECCION_GRUPAL_KEY = "pampa_pago_grupal_seleccion";
 
@@ -30,8 +31,11 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
   const [buscando, setBuscando] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
-  // Alta de venta nueva.
+  // Alta de venta nueva. Cuando se abre desde "+ Agregar integrante" del resumen de un
+  // colegio, nuevaVentaColegio trae ese colegio ya elegido (salta el paso 1 del formulario).
   const [nuevaVenta, setNuevaVenta] = useState(false);
+  const [nuevaVentaColegio, setNuevaVentaColegio] = useState("");
+  const [resumenKey, setResumenKey] = useState(0);
 
   // Pago grupal: seleccionar varios alumnos del mismo colegio (ej. una institución que paga
   // junta la cuota de varios chicos) y cargarles el pago a todos de una.
@@ -183,6 +187,9 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
     setNuevaVenta(false);
     setColegio(organizacion);
     setAlumnoId(id);
+    // Fuerza que el resumen del colegio se vuelva a pedir (por si se acaba de agregar un
+    // integrante nuevo y cambió el total/la cantidad).
+    setResumenKey((k) => k + 1);
   }
 
   function toggleModoGrupal() {
@@ -205,11 +212,17 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
     setSeleccionados(new Set());
   }
 
+  // Refresca la ficha del alumno abierto Y el resumen del colegio (cambian saldo/total
+  // cobrado) — usar después de registrar o anular cualquier pago.
+  function refrescarAlumnoYResumen() {
+    if (alumnoId) loadAlumno(alumnoId);
+    setResumenKey((k) => k + 1);
+  }
+
   function onPagoGrupalRegistrado() {
     setModoGrupal(false);
     setSeleccionados(new Set());
-    // Si el alumno abierto en la ficha era parte del lote, refrescamos su saldo.
-    if (alumnoId) loadAlumno(alumnoId);
+    refrescarAlumnoYResumen();
   }
 
   return (
@@ -237,7 +250,10 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
             {modoGrupal ? "Cancelar pago grupal" : "Pago grupal"}
           </button>
           <button
-            onClick={() => setNuevaVenta((v) => !v)}
+            onClick={() => {
+              setNuevaVentaColegio("");
+              setNuevaVenta((v) => !v);
+            }}
             className="btn btn-primary rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
           >
             {nuevaVenta ? "Cerrar" : "+ Nueva venta"}
@@ -271,6 +287,7 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
       {nuevaVenta && (
         <NuevaVentaForm
           colegios={colegios}
+          institucionInicial={nuevaVentaColegio || undefined}
           onCreada={(id, org) => seleccionarAlumno(id, org)}
           onCancel={() => setNuevaVenta(false)}
         />
@@ -346,9 +363,22 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
         </p>
       </Card>
 
+      {/* Resumen del colegio: lo primero que se ve al elegir un colegio, antes de la ficha
+          de un alumno puntual. */}
+      {colegio && !modoGrupal && (
+        <ColegioResumen
+          key={`${colegio}-${resumenKey}`}
+          colegio={colegio}
+          onAgregarIntegrante={() => {
+            setNuevaVentaColegio(colegio);
+            setNuevaVenta(true);
+          }}
+        />
+      )}
+
       {!modoGrupal && loadingAlumno && <p className="text-sm text-neutral-400">Cargando alumno…</p>}
       {!modoGrupal && !loadingAlumno && alumno && (
-        <AlumnoDetail alumno={alumno} onRegistrado={() => loadAlumno(alumnoId)} />
+        <AlumnoDetail alumno={alumno} onRegistrado={refrescarAlumnoYResumen} />
       )}
 
       {colegio && !loadingAlumnos && alumnos.length > 0 && (

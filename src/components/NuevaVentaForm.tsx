@@ -9,6 +9,9 @@ type Props = {
   colegios: Colegio[];
   onCreada: (alumnoId: string, organizacion: string) => void;
   onCancel: () => void;
+  // Si viene, arranca directo en el paso 2 con esta institución ya elegida (ej.: botón
+  // "+ Agregar integrante" desde la ficha de un colegio, sin tener que volver a elegirlo).
+  institucionInicial?: string;
 };
 
 type Institucion = {
@@ -24,9 +27,11 @@ const TIPOS = [
   { v: "empresa", l: "Empresa" },
 ] as const;
 
-export default function NuevaVentaForm({ colegios, onCreada, onCancel }: Props) {
-  const [paso, setPaso] = useState<"institucion" | "alumno">("institucion");
-  const [institucion, setInstitucion] = useState("");
+export default function NuevaVentaForm({ colegios, onCreada, onCancel, institucionInicial }: Props) {
+  const [paso, setPaso] = useState<"institucion" | "alumno">(
+    institucionInicial ? "alumno" : "institucion"
+  );
+  const [institucion, setInstitucion] = useState(institucionInicial || "");
 
   // Paso 1 — institución
   const [modoInst, setModoInst] = useState<"elegir" | "crear">("elegir");

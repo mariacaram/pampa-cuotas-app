@@ -152,4 +152,26 @@ export class SupabaseRepo implements Repo {
     alumnosCache = null; // invalidar: aparece el alumno nuevo
     return row;
   }
+
+  async updateAlumnoTotales(
+    alumnoId: string,
+    cambios: { plan_cuotas: number; total_asignado: number }
+  ): Promise<void> {
+    const rows = await this.listAllAlumnos();
+    const actual = rows.find((a) => a.alumno_id === alumnoId);
+    if (!actual) throw new Error("Alumno no encontrado");
+    const saldoBase = Math.round((cambios.total_asignado - actual.monto_pagado_base) * 100) / 100;
+    const { error } = await this.db
+      .from("alumnos")
+      .update({
+        plan_cuotas: cambios.plan_cuotas,
+        total_asignado: cambios.total_asignado,
+        saldo_base: saldoBase,
+        situacion_base:
+          saldoBase <= 0 ? "PAGO TOTAL" : actual.monto_pagado_base > 0 ? "PAGO PARCIAL" : "SIN PAGOS",
+      })
+      .eq("alumno_id", alumnoId);
+    if (error) throw error;
+    alumnosCache = null;
+  }
 }

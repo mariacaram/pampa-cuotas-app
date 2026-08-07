@@ -223,7 +223,14 @@ function montoCuotaRegular(base: AlumnoBase): number {
 }
 
 // Recalcula los totales de un alumno a partir de sus datos base + los pagos nuevos.
-export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
+// `cuotasManual` (opcional): importes cargados a mano por Paulina para este alumno (uno por
+// cuota, ver src/lib/server/cuotasManuales.ts) — reemplaza el reparto automático cuando su
+// cantidad coincide con el plan de cuotas actual.
+export function computeAlumno(
+  base: AlumnoBase,
+  pagos: Pago[],
+  cuotasManual?: number[] | null
+): AlumnoComputed {
   const sumaPagos = pagos.reduce((acc, p) => acc + (p.monto || 0), 0);
   const interesTotal = pagos.reduce((acc, p) => acc + (p.interes || 0), 0);
   const bonificacionTotal = pagos.reduce((acc, p) => acc + (p.bonificacion || 0), 0);
@@ -251,15 +258,22 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
 
   const cuotas = base.plan_cuotas > 0 ? base.plan_cuotas : 1;
   const montoCuota = montoCuotaRegular(base);
+  const manual = cuotasManual && cuotasManual.length === cuotas ? cuotasManual : null;
   // Cuotas pagadas = las que ya trae la planilla (cuotas_pagadas_base, que YA cuenta la seña
   // variable como 1ª cuota) + las cubiertas por los pagos NUEVOS de la app (por monto).
   // Si el saldo quedó en 0, se considera todo pagado.
+  // OJO: este conteo asume cuotas de igual tamaño — con importes cargados a mano (desiguales)
+  // puede quedar aproximado si además hay pagos nuevos de la app; es una limitación conocida,
+  // el saldo y el total pagado (que no dependen de esto) siempre son exactos igual.
   const cuotasPagadasNuevas = montoCuota > 0 ? Math.floor(sumaPagos / montoCuota) : 0;
   const cuotasPagadas =
     saldo <= 0
       ? cuotas
       : Math.min(cuotas, (base.cuotas_pagadas_base || 0) + cuotasPagadasNuevas);
   const cuotasPendientes = Math.max(0, cuotas - cuotasPagadas);
+  // Monto por cuota que se muestra/usa de acá en más: si hay importes manuales, el de la
+  // PRÓXIMA cuota pendiente (más preciso que un promedio cuando los importes son desiguales).
+  const montoCuotaMostrado = manual ? manual[Math.min(cuotasPagadas, manual.length - 1)] : montoCuota;
 
   let situacion: Situacion = "PAGO PARCIAL";
   if (montoPagadoTotal <= 0) situacion = "SIN PAGOS";
@@ -272,7 +286,7 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
   const cuotasEsperadas = cuotasVencidasHoy(base.fecha_orden, cuotas);
   const cuotasAtrasadas = saldo > 0 ? Math.max(0, cuotasEsperadas - cuotasPagadas) : 0;
   const atrasado = cuotasAtrasadas > 0;
-  const montoVencido = atrasado ? Math.min(saldo, round2(cuotasAtrasadas * montoCuota)) : 0;
+  const montoVencido = atrasado ? Math.min(saldo, round2(cuotasAtrasadas * montoCuotaMostrado)) : 0;
 
   // Proyecciones de "cuánto pagaría si viene HOY" sobre el saldo pendiente, para que la
   // cajera sepa cuánto cobrar según cómo pague. Si no debe nada (saldo 0), las tres dan 0.
@@ -298,7 +312,7 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
   }
 
   // Plan de cuotas mes por mes: fecha de vencimiento + estado (pagada/vencida/pendiente).
-  const cuotasPlan = buildCuotasPlan(base, cuotas, montoCuota, cuotasPagadas);
+  const cuotasPlan = buildCuotasPlan(base, cuotas, montoCuota, cuotasPagadas, manual);
 
   return {
     ...base,
@@ -309,7 +323,7 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
     interesListaTotal,
     bonificacionTotal,
     saldo,
-    montoCuota,
+    montoCuota: montoCuotaMostrado,
     cuotasPagadas,
     cuotasPendientes,
     situacion,
@@ -322,6 +336,7 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
     totalTarjeta3Cuotas,
     proximoVencimiento,
     cuotasPlan,
+    cuotasManualActivas: !!manual,
   };
 }
 
@@ -333,7 +348,8 @@ function buildCuotasPlan(
   base: AlumnoBase,
   cuotas: number,
   montoCuota: number,
-  cuotasPagadas: number
+  cuotasPagadas: number,
+  cuotasManual?: number[] | null
 ): CuotaPlan[] {
   const plan: CuotaPlan[] = [];
   const d = base.fecha_orden
@@ -343,25 +359,38 @@ function buildCuotasPlan(
   const hoy = Date.now();
   const sena = detectarSena(base);
   const total = base.total_asignado;
+  // Importes cargados a mano por Paulina (un número por cuota, en orden — ver
+  // src/lib/server/cuotasManuales.ts). Reemplazan el reparto automático cuando existen y su
+  // cantidad coincide con el plan actual; sirve para pedidos con precio propio que no siguen
+  // ningún patrón de "seña + cuotas iguales" (ej. un integrante que se suma después con un
+  // precio distinto al resto del colegio).
+  const manual = cuotasManual && cuotasManual.length === cuotas ? cuotasManual : null;
   for (let k = 1; k <= cuotas; k++) {
     const venc = ordenValida ? vencimientoCuota(d as Date, k) : null;
     let estado: CuotaPlan["estado"];
     if (k <= cuotasPagadas) estado = "pagada";
     else if (venc && venc.getTime() <= hoy) estado = "vencida";
     else estado = "pendiente";
-    // Reparto del plan (el extra NUNCA se reparte: va entero en la última cuota):
-    //  - contado (1 cuota): la cuota es el total.
-    //  - plan largo (>=5), o pedido sin combo/prenda (club/empresa, sin seña): todas iguales
-    //    (la última absorbe el redondeo).
-    //  - plan 2-4 de un uniforme escolar: 1ª = seña; intermedias = cuota del flyer
-    //    (montoCuota); última = lo que resta (la cuota del flyer + el extra). Siempre suman
-    //    EXACTO el total.
     let monto: number;
-    if (cuotas <= 1) monto = total;
-    else if (base.plan_cuotas >= 5 || esOrdenSinCombo(base)) monto = k < cuotas ? montoCuota : round2(total - montoCuota * (cuotas - 1));
-    else if (k === 1) monto = sena;
-    else if (k === cuotas) monto = round2(total - sena - montoCuota * (cuotas - 2));
-    else monto = montoCuota;
+    if (manual) {
+      monto = manual[k - 1];
+    } else if (cuotas <= 1) {
+      monto = total;
+    } else if (base.plan_cuotas >= 5 || esOrdenSinCombo(base)) {
+      // Reparto del plan (el extra NUNCA se reparte: va entero en la última cuota):
+      //  - plan largo (>=5), o pedido sin combo/prenda (club/empresa, sin seña): todas
+      //    iguales (la última absorbe el redondeo).
+      monto = k < cuotas ? montoCuota : round2(total - montoCuota * (cuotas - 1));
+    } else if (k === 1) {
+      // - plan 2-4 de un uniforme escolar: 1ª = seña; intermedias = cuota del flyer
+      //   (montoCuota); última = lo que resta (la cuota del flyer + el extra). Siempre
+      //   suman EXACTO el total.
+      monto = sena;
+    } else if (k === cuotas) {
+      monto = round2(total - sena - montoCuota * (cuotas - 2));
+    } else {
+      monto = montoCuota;
+    }
     monto = Math.max(0, round2(monto));
     plan.push({
       numero: k,

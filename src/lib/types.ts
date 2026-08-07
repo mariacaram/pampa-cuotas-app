@@ -108,6 +108,9 @@ export type AlumnoComputed = AlumnoBase & {
   totalPrecioDeLista: number; // + transferencia/débito/crédito en 1 pago (10%, encadenado)
   totalTarjeta3Cuotas: number; // + tarjeta en 3 pagos (25% abril / 30% julio, según hoy)
   proximoVencimiento: string; // fecha ISO de la próxima cuota impaga, "" si está saldado
+  // true si este alumno tiene importes de cuota cargados a mano (ver
+  // src/lib/server/cuotasManuales.ts) en vez del reparto automático.
+  cuotasManualActivas: boolean;
   bonificacionTotal: number;
   cuotasPlan: CuotaPlan[]; // plan de cuotas mes por mes (vencimiento + estado)
 };

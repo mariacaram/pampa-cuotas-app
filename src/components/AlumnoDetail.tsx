@@ -5,6 +5,7 @@ import { AlumnoComputed } from "@/lib/types";
 import { formatMoney, formatDate, parseNota } from "@/lib/format";
 import { Card, SituacionPill } from "./ui";
 import PagoForm from "./PagoForm";
+import EditarCuotasForm from "./EditarCuotasForm";
 
 type Props = {
   alumno: AlumnoComputed;
@@ -22,6 +23,7 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
   const [motivo, setMotivo] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editandoCuotas, setEditandoCuotas] = useState(false);
 
   async function anular(id: number | string) {
     if (!motivo.trim()) {
@@ -129,12 +131,38 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
         </div>
       </Card>
 
+      {editandoCuotas && (
+        <EditarCuotasForm
+          alumno={alumno}
+          onGuardado={() => { setEditandoCuotas(false); onRegistrado(); }}
+          onCancel={() => setEditandoCuotas(false)}
+        />
+      )}
+
       {/* Plan de cuotas: vencimiento y estado de cada mes */}
       {alumno.cuotasPlan.length > 0 && (
         <Card className="p-0">
-          <div className="border-b border-neutral-100 px-5 py-3">
-            <p className="text-sm font-semibold text-neutral-800">Plan de cuotas</p>
-            <p className="text-xs text-neutral-400">Fecha de vencimiento y estado de cada cuota.</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 px-5 py-3">
+            <div>
+              <p className="text-sm font-semibold text-neutral-800">
+                Plan de cuotas
+                {alumno.cuotasManualActivas && (
+                  <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
+                    Importes cargados a mano
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-neutral-400">Fecha de vencimiento y estado de cada cuota.</p>
+            </div>
+            {!editandoCuotas && (
+              <button
+                type="button"
+                onClick={() => setEditandoCuotas(true)}
+                className="rounded-md border border-neutral-300 px-2 py-1 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
+              >
+                ✎ Cargar importes a mano
+              </button>
+            )}
           </div>
           <div className="thin-scroll max-h-80 overflow-auto">
             <table className="w-full text-sm">

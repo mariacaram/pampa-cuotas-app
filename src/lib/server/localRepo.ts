@@ -143,4 +143,23 @@ export class LocalFileRepo implements Repo {
     saveAlumnos(alumnos);
     return row;
   }
+
+  async updateAlumnoTotales(
+    alumnoId: string,
+    cambios: { plan_cuotas: number; total_asignado: number }
+  ): Promise<void> {
+    const alumnos = loadAlumnos();
+    const idx = alumnos.findIndex((a) => a.alumno_id === alumnoId);
+    if (idx < 0) throw new Error("Alumno no encontrado");
+    const actual = alumnos[idx];
+    const saldoBase = Math.round((cambios.total_asignado - actual.monto_pagado_base) * 100) / 100;
+    alumnos[idx] = {
+      ...actual,
+      plan_cuotas: cambios.plan_cuotas,
+      total_asignado: cambios.total_asignado,
+      saldo_base: saldoBase,
+      situacion_base: saldoBase <= 0 ? "PAGO TOTAL" : actual.monto_pagado_base > 0 ? "PAGO PARCIAL" : "SIN PAGOS",
+    };
+    saveAlumnos(alumnos);
+  }
 }
