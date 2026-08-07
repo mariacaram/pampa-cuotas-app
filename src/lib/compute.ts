@@ -290,16 +290,20 @@ export function computeAlumno(
 
   // Proyecciones de "cuánto pagaría si viene HOY" sobre el saldo pendiente, para que la
   // cajera sepa cuánto cobrar según cómo pague. Si no debe nada (saldo 0), las tres dan 0.
-  // El de atraso solo aplica si realmente hay una cuota vencida; los otros dos son por forma
-  // de pago y se encadenan con el de atraso cuando corresponde (mismo orden que en PagoForm:
-  // primero atraso, después el recargo de la forma de pago, sobre el resultado ya con atraso).
-  const conAtraso = atrasado ? saldo * (1 + RECARGO_ATRASO_PCT / 100) : saldo;
-  const totalConInteresAtraso = atrasado ? round2(conAtraso) : 0;
-  const totalPrecioDeLista = round2(conAtraso * (1 + RECARGO_NO_EFECTIVO_PCT / 100));
+  // IMPORTANTE: el recargo se calcula SOLO sobre la parte VENCIDA (montoVencido), nunca sobre
+  // cuotas que todavía no vencieron — si hay 2 cuotas pendientes y solo 1 está vencida, la que
+  // no venció se suma tal cual, sin ningún recargo (ni siquiera el de forma de pago). El de
+  // atraso solo aplica si realmente hay una cuota vencida; los otros dos son por forma de pago
+  // y se encadenan con el de atraso cuando corresponde (mismo orden que en PagoForm: primero
+  // atraso, después el recargo de la forma de pago, sobre el resultado ya con atraso).
+  const restoSinVencer = round2(saldo - montoVencido);
+  const conAtraso = atrasado ? montoVencido * (1 + RECARGO_ATRASO_PCT / 100) : montoVencido;
+  const totalConInteresAtraso = atrasado ? round2(conAtraso + restoSinVencer) : 0;
+  const totalPrecioDeLista = round2(conAtraso * (1 + RECARGO_NO_EFECTIVO_PCT / 100) + restoSinVencer);
   const pctTarjeta3 = periodoHoyEsJulio()
     ? RECARGO_TARJETA_3_CUOTAS_JULIO_PCT
     : RECARGO_TARJETA_3_CUOTAS_ABRIL_PCT;
-  const totalTarjeta3Cuotas = round2(conAtraso * (1 + pctTarjeta3 / 100));
+  const totalTarjeta3Cuotas = round2(conAtraso * (1 + pctTarjeta3 / 100) + restoSinVencer);
 
   // Próxima cuota impaga = (cuotasPagadas + 1); su vencimiento. "" si ya está saldado.
   let proximoVencimiento = "";
