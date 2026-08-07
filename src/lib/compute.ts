@@ -21,6 +21,9 @@ const COLEGIOS_ESPECIALES = new Set<string>([
   "santa rosa",
   "27 nueva concepcion",
   "27 maria del rosario",
+  "27 santa cruz",
+  "27 san matias",
+  "27 abejita",
 ]);
 function esColegioEspecial(base: AlumnoBase): boolean {
   return COLEGIOS_ESPECIALES.has((base.organizacion || "").trim().toLowerCase());
@@ -66,11 +69,11 @@ function comboDe(base: AlumnoBase): ComboId | null {
 }
 
 // Montos de cuota candidatos para el combo/período/nº de cuotas, en orden de prioridad:
-// primero el precio REAL del colegio (PRECIOS_COLEGIO, derivado de lo que efectivamente pagó
-// la mayoría de sus alumnos), después el flyer nacional. Se prueban en ese orden porque un
-// mismo colegio puede tener alumnos que igual pagaron el precio nacional (una minoría dentro
-// del grupo) — si el local no encaja para ESE pedido puntual, hay que poder caer al nacional
-// antes de rendirse al reparto parejo.
+// primero el precio REAL del colegio (PRECIOS_COLEGIO — solo existe cuando ese precio es MENOR
+// al mínimo del flyer para el combo, es decir, un precio genuinamente distinto y negociado
+// aparte), después el flyer nacional. Nunca se guarda un precio de colegio que sea igual o mayor
+// al flyer: eso sería "flyer + un extra que compró la mayoría del grupo", y el extra SIEMPRE va
+// entero en la última cuota, nunca promediado entre todas (regla de Paulina).
 function cuotasCandidatas(base: AlumnoBase, nCuotas: number): number[] {
   const combo = comboDe(base);
   if (!combo || nCuotas < 1 || nCuotas > 3) return [];
