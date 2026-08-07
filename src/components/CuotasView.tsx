@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlumnoBase, AlumnoComputed, Colegio } from "@/lib/types";
+import { AlumnoBase, AlumnoComputed, Colegio, CuotaPlan } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
 import { Card, SituacionPill } from "./ui";
 import AlumnoDetail from "./AlumnoDetail";
@@ -11,6 +11,7 @@ import NuevaVentaForm from "./NuevaVentaForm";
 import PagoGrupalForm from "./PagoGrupalForm";
 import LotesPanel from "./LotesPanel";
 import ColegioResumen from "./ColegioResumen";
+import CuotaChips from "./CuotaChips";
 
 const SELECCION_GRUPAL_KEY = "pampa_pago_grupal_seleccion";
 
@@ -37,11 +38,21 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
   const [nuevaVentaColegio, setNuevaVentaColegio] = useState("");
   const [resumenKey, setResumenKey] = useState(0);
 
-  // Pago grupal: seleccionar varios alumnos del mismo colegio (ej. una institución que paga
-  // junta la cuota de varios chicos) y cargarles el pago a todos de una.
+  // Pago grupal: elegir directo, cuota por cuota, qué está pagando cada alumno del mismo
+  // colegio (ej. una institución que paga junta la cuota de varios chicos), y cargarles el
+  // pago a todos de una. seleccionCuotas: alumno_id -> números de cuota tildados.
   const [modoGrupal, setModoGrupal] = useState(false);
-  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [seleccionCuotas, setSeleccionCuotas] = useState<Record<string, Set<number>>>({});
+  const [cuotasPorAlumno, setCuotasPorAlumno] = useState<Record<string, CuotaPlan[]>>({});
+  const [loadingCuotas, setLoadingCuotas] = useState(false);
   const [mostrarLotes, setMostrarLotes] = useState(false);
+
+  // Derivado: alumnos con al menos una cuota tildada (para contadores, resaltado de fila, etc.)
+  const seleccionados = new Set(
+    Object.entries(seleccionCuotas)
+      .filter(([, nums]) => nums.size > 0)
+      .map(([id]) => id)
+  );
   // La selección se guarda en sessionStorage para que sobreviva si Paulina se va a otra
   // pantalla (ej. a chequear algo en Control de caja) y vuelve — sin esto, cambiar de vista
   // desmonta CuotasView y se pierde todo lo tildado. Este ref evita que el efecto que guarda
@@ -110,19 +121,20 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
     loadAlumno(alumnoId);
   }, [alumnoId, loadAlumno]);
 
-  // Al montar, si había un pago grupal en curso (colegio + alumnos tildados) guardado en esta
-  // pestaña, lo restauramos — así volver desde otra pantalla no borra lo que ya se había
-  // seleccionado.
+  // Al montar, si había un pago grupal en curso (colegio + cuotas tildadas por alumno) guardado
+  // en esta pestaña, lo restauramos — así volver desde otra pantalla no borra lo que ya se
+  // había seleccionado.
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(SELECCION_GRUPAL_KEY);
       if (raw) {
-        const guardado = JSON.parse(raw) as { colegio: string; seleccionados: string[] };
-        if (guardado.colegio && guardado.seleccionados?.length) {
+        const guardado = JSON.parse(raw) as { colegio: string; seleccionCuotas: Record<string, number[]> };
+        const entradas = Object.entries(guardado.seleccionCuotas || {});
+        if (guardado.colegio && entradas.length > 0) {
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setModoGrupal(true);
           setColegio(guardado.colegio);
-          setSeleccionados(new Set(guardado.seleccionados));
+          setSeleccionCuotas(Object.fromEntries(entradas.map(([id, nums]) => [id, new Set(nums)])));
         }
       }
     } catch {
@@ -140,17 +152,49 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
     }
     try {
       if (modoGrupal && seleccionados.size > 0) {
-        sessionStorage.setItem(
-          SELECCION_GRUPAL_KEY,
-          JSON.stringify({ colegio, seleccionados: [...seleccionados] })
+        const serializable = Object.fromEntries(
+          Object.entries(seleccionCuotas)
+            .filter(([, nums]) => nums.size > 0)
+            .map(([id, nums]) => [id, [...nums]])
         );
+        sessionStorage.setItem(SELECCION_GRUPAL_KEY, JSON.stringify({ colegio, seleccionCuotas: serializable }));
       } else {
         sessionStorage.removeItem(SELECCION_GRUPAL_KEY);
       }
     } catch {
       // ignorar
     }
-  }, [modoGrupal, seleccionados, colegio]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modoGrupal, seleccionCuotas, colegio]);
+
+  // Trae el plan de cuotas de TODOS los alumnos del colegio (para las píldoras clickeables),
+  // solo mientras el modo grupal está activo.
+  useEffect(() => {
+    if (!modoGrupal || !colegio) return;
+    let cancel = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadingCuotas(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/alumnos/cuotas?organizacion=${encodeURIComponent(colegio)}`);
+        const data = await res.json();
+        if (cancel) return;
+        if (!res.ok) throw new Error(data.error || "Error cargando las cuotas");
+        const mapa: Record<string, CuotaPlan[]> = {};
+        for (const a of data.alumnos as { alumno_id: string; cuotasPlan: CuotaPlan[] }[]) {
+          mapa[a.alumno_id] = a.cuotasPlan;
+        }
+        setCuotasPorAlumno(mapa);
+      } catch (e) {
+        if (!cancel) setError(String(e instanceof Error ? e.message : e));
+      } finally {
+        if (!cancel) setLoadingCuotas(false);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [modoGrupal, colegio]);
 
   // Búsqueda global con debounce.
   useEffect(() => {
@@ -194,22 +238,23 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
 
   function toggleModoGrupal() {
     setModoGrupal((v) => !v);
-    setSeleccionados(new Set());
+    setSeleccionCuotas({});
   }
 
-  function toggleSeleccionado(id: string) {
-    setSeleccionados((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  // Tilda/destilda UNA cuota puntual de UN alumno (click en su píldora, ver CuotaChips).
+  function toggleCuota(alumnoId: string, numero: number) {
+    setSeleccionCuotas((prev) => {
+      const actual = new Set(prev[alumnoId] ?? []);
+      if (actual.has(numero)) actual.delete(numero);
+      else actual.add(numero);
+      return { ...prev, [alumnoId]: actual };
     });
   }
 
   // Vacía la selección sin salir del modo grupal (para "empezar de nuevo" sin tener que
   // cancelar y volver a entrar).
   function deseleccionarTodo() {
-    setSeleccionados(new Set());
+    setSeleccionCuotas({});
   }
 
   // Refresca la ficha del alumno abierto Y el resumen del colegio (cambian saldo/total
@@ -221,7 +266,7 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
 
   function onPagoGrupalRegistrado() {
     setModoGrupal(false);
-    setSeleccionados(new Set());
+    setSeleccionCuotas({});
     refrescarAlumnoYResumen();
   }
 
@@ -296,7 +341,14 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
       {modoGrupal && seleccionados.size > 0 && (
         <PagoGrupalForm
           colegio={colegio}
-          alumnos={alumnos.filter((a) => seleccionados.has(a.alumno_id))}
+          integrantes={alumnos
+            .filter((a) => seleccionados.has(a.alumno_id))
+            .map((a) => ({
+              alumno: a,
+              cuotas: (cuotasPorAlumno[a.alumno_id] || []).filter((c) =>
+                seleccionCuotas[a.alumno_id]?.has(c.numero)
+              ),
+            }))}
           onRegistrado={onPagoGrupalRegistrado}
           onCancel={toggleModoGrupal}
         />
@@ -387,26 +439,35 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
             <p className="text-sm font-semibold text-neutral-800">
               Alumnos de {colegio} ({alumnos.length})
             </p>
+            {modoGrupal && (
+              <p className="text-xs text-neutral-400">
+                Tocá las cuotas (rojas = vencidas, celestes = pendientes) que está pagando cada uno.
+                {loadingCuotas && " Cargando cuotas…"}
+              </p>
+            )}
           </div>
           <div className="thin-scroll max-h-96 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-neutral-50 text-left text-xs text-neutral-500">
                 <tr>
-                  {modoGrupal && <th className="p-3"></th>}
                   <th className="p-3">Alumno</th>
-                  <th className="p-3">Total</th>
-                  <th className="p-3">Saldo (planilla)</th>
-                  <th className="p-3">Situación</th>
+                  {modoGrupal ? (
+                    <th className="p-3">Cuotas</th>
+                  ) : (
+                    <>
+                      <th className="p-3">Total</th>
+                      <th className="p-3">Saldo (planilla)</th>
+                      <th className="p-3">Situación</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {alumnos.map((a) => (
                   <tr
                     key={a.alumno_id}
-                    onClick={() =>
-                      modoGrupal ? toggleSeleccionado(a.alumno_id) : setAlumnoId(a.alumno_id)
-                    }
-                    className={`cursor-pointer border-t border-neutral-100 hover:bg-emerald-50/50 ${
+                    onClick={() => (modoGrupal ? undefined : setAlumnoId(a.alumno_id))}
+                    className={`border-t border-neutral-100 ${modoGrupal ? "" : "cursor-pointer hover:bg-emerald-50/50"} ${
                       modoGrupal
                         ? seleccionados.has(a.alumno_id)
                           ? "bg-emerald-50"
@@ -416,22 +477,24 @@ export default function CuotasView({ colegios }: { colegios: Colegio[] }) {
                           : ""
                     }`}
                   >
-                    {modoGrupal && (
+                    <td className="p-3">{a.alumno}</td>
+                    {modoGrupal ? (
                       <td className="p-3">
-                        <input
-                          type="checkbox"
-                          checked={seleccionados.has(a.alumno_id)}
-                          onChange={() => toggleSeleccionado(a.alumno_id)}
-                          onClick={(e) => e.stopPropagation()}
+                        <CuotaChips
+                          cuotas={cuotasPorAlumno[a.alumno_id] || []}
+                          seleccionadas={seleccionCuotas[a.alumno_id] ?? new Set()}
+                          onToggle={(numero) => toggleCuota(a.alumno_id, numero)}
                         />
                       </td>
+                    ) : (
+                      <>
+                        <td className="p-3">{formatMoney(a.total_asignado)}</td>
+                        <td className="p-3">{formatMoney(a.saldo_base)}</td>
+                        <td className="p-3">
+                          <SituacionPill situacion={a.situacion_base} />
+                        </td>
+                      </>
                     )}
-                    <td className="p-3">{a.alumno}</td>
-                    <td className="p-3">{formatMoney(a.total_asignado)}</td>
-                    <td className="p-3">{formatMoney(a.saldo_base)}</td>
-                    <td className="p-3">
-                      <SituacionPill situacion={a.situacion_base} />
-                    </td>
                   </tr>
                 ))}
               </tbody>
