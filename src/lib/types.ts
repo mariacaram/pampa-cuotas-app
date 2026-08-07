@@ -102,6 +102,11 @@ export type AlumnoComputed = AlumnoBase & {
   cuotasAtrasadas: number;
   atrasado: boolean;
   montoVencido: number;
+  // Proyecciones de "cuánto pagaría si viene hoy" el saldo pendiente, según cómo pague — 0 si
+  // no debe nada. Ver computeAlumno en compute.ts para el orden de encadenado de recargos.
+  totalConInteresAtraso: number; // saldo + recargo por cuota vencida (10%), solo si atrasado
+  totalPrecioDeLista: number; // + transferencia/débito/crédito en 1 pago (10%, encadenado)
+  totalTarjeta3Cuotas: number; // + tarjeta en 3 pagos (25% abril / 30% julio, según hoy)
   proximoVencimiento: string; // fecha ISO de la próxima cuota impaga, "" si está saldado
   bonificacionTotal: number;
   cuotasPlan: CuotaPlan[]; // plan de cuotas mes por mes (vencimiento + estado)

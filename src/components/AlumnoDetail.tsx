@@ -89,12 +89,13 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
         )}
 
         {/*
-          Los 3 conceptos se muestran discriminados: Precio (lo que falta del precio base,
-          esto sí es un monto pendiente) / Interés por cuota vencida / Precio de lista. Los dos
-          recargos son SIEMPRE plata ya cobrada (quedaron registrados junto con un pago que ya
-          se hizo) — nunca se suman a "pendiente", y se marcan como "Cobrado" cuando hay monto.
+          Precio = saldo pendiente (lo único que realmente puede estar pendiente). Los otros 3
+          son PROYECCIONES de "cuánto pagaría si viene HOY" según cómo pague — se calculan
+          sobre el saldo y dan $0 solos cuando ya no debe nada (computeAlumno). Si además ya se
+          le cobró recargo antes (pagos ya registrados), se lo mostramos aparte como referencia
+          histórica, sin mezclarlo con la proyección.
         */}
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-2xl bg-emerald-700 p-4 text-white">
             <p className="text-xs text-emerald-100">Precio — saldo pendiente</p>
             <p className="text-2xl font-bold">{formatMoney(alumno.saldo)}</p>
@@ -102,24 +103,29 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
               {alumno.saldo > 0 ? "Pendiente de cobro" : "Pagado"}
             </p>
           </div>
-          <div className="rounded-2xl bg-amber-50 p-4">
-            <p className="text-xs text-amber-700">Interés por cuota vencida</p>
-            <p className="text-2xl font-bold text-amber-900">
-              {formatMoney(alumno.interesAtrasoTotal)}
-            </p>
-            {alumno.interesAtrasoTotal > 0 && (
-              <p className="mt-1 text-xs text-amber-700">Ya cobrado</p>
-            )}
-          </div>
-          <div className="rounded-2xl bg-sky-50 p-4">
-            <p className="text-xs text-sky-700">Precio de lista (no efectivo)</p>
-            <p className="text-2xl font-bold text-sky-900">
-              {formatMoney(alumno.interesListaTotal)}
-            </p>
-            {alumno.interesListaTotal > 0 && (
-              <p className="mt-1 text-xs text-sky-700">Ya cobrado</p>
-            )}
-          </div>
+          <RecargoCard
+            color="amber"
+            titulo="Interés por cuota vencida"
+            total={alumno.totalConInteresAtraso}
+            saldo={alumno.saldo}
+            detalle="si paga atrasado"
+            historico={alumno.interesAtrasoTotal}
+          />
+          <RecargoCard
+            color="sky"
+            titulo="Precio de lista (no efectivo)"
+            total={alumno.totalPrecioDeLista}
+            saldo={alumno.saldo}
+            detalle="transferencia/débito/crédito en 1 pago"
+            historico={alumno.interesListaTotal}
+          />
+          <RecargoCard
+            color="indigo"
+            titulo="Tarjeta en 3 pagos"
+            total={alumno.totalTarjeta3Cuotas}
+            saldo={alumno.saldo}
+            detalle="tarjeta en 3 pagos"
+          />
         </div>
       </Card>
 
@@ -181,11 +187,12 @@ export default function AlumnoDetail({ alumno, onRegistrado }: Props) {
         ) : (
           <Card className="p-0">
             <div className="thin-scroll overflow-x-auto">
-            <table className="w-full min-w-[40rem] text-sm">
+            <table className="w-full min-w-[46rem] text-sm">
               <thead className="bg-neutral-50 text-left text-xs text-neutral-500">
                 <tr>
                   <th className="p-3">Fecha</th>
-                  <th className="p-3">Monto</th>
+                  <th className="p-3">Total pagado</th>
+                  <th className="p-3">Cuota</th>
                   <th className="p-3">Forma</th>
                   <th className="p-3">Interés</th>
                   <th className="p-3">Bonificación</th>
@@ -252,14 +259,15 @@ function PagoRow({
     <>
       <tr className="border-t border-neutral-100">
         <td className="p-3">{formatDate(p.fecha)}</td>
-        <td className="p-3">
-          {formatMoney(p.monto)}
+        <td className="p-3 font-medium">
+          {formatMoney(p.monto + (p.interes || 0))}
           {esDividido && (
             <span className="ml-1 text-[11px] font-normal text-neutral-400" title="Este cobro se dividió en varias formas de pago">
               (1 de {hermanos.length + 1})
             </span>
           )}
         </td>
+        <td className="p-3">{formatMoney(p.monto)}</td>
         <td className="p-3">{p.forma_de_pago}</td>
         <td className="p-3">
           {p.interes ? `${formatMoney(p.interes)}${p.interes_pct ? ` (${p.interes_pct}%)` : ""}` : "—"}
@@ -279,7 +287,7 @@ function PagoRow({
       </tr>
       {anulando && (
         <tr className="bg-red-50/50">
-          <td colSpan={7} className="p-3">
+          <td colSpan={8} className="p-3">
             <p className="mb-2 text-xs font-semibold text-red-700">
               {esDividido
                 ? `Este cobro se dividió en ${hermanos.length + 1} formas de pago (total ${formatMoney(totalGrupo)}) — al anular, se anulan TODAS juntas. Indicá el motivo:`
@@ -311,6 +319,48 @@ function PagoRow({
         </tr>
       )}
     </>
+  );
+}
+
+const RECARGO_COLORES = {
+  amber: { bg: "bg-amber-50", texto: "text-amber-700", valor: "text-amber-900" },
+  sky: { bg: "bg-sky-50", texto: "text-sky-700", valor: "text-sky-900" },
+  indigo: { bg: "bg-indigo-50", texto: "text-indigo-700", valor: "text-indigo-900" },
+} as const;
+
+// Tarjeta de proyección de recargo: cuánto pagaría el alumno HOY con esa forma de pago (ya
+// calculado en computeAlumno, encadenado con el de atraso si corresponde). Si además hay un
+// monto de ese mismo tipo ya cobrado en pagos anteriores, se muestra aparte como referencia.
+function RecargoCard({
+  color,
+  titulo,
+  total,
+  saldo,
+  detalle,
+  historico,
+}: {
+  color: keyof typeof RECARGO_COLORES;
+  titulo: string;
+  total: number;
+  saldo: number;
+  detalle: string;
+  historico?: number;
+}) {
+  const cls = RECARGO_COLORES[color];
+  const pctExtra = saldo > 0 && total > 0 ? Math.round((total / saldo - 1) * 1000) / 10 : 0;
+  return (
+    <div className={`rounded-2xl ${cls.bg} p-4`}>
+      <p className={`text-xs ${cls.texto}`}>{titulo}</p>
+      <p className={`text-2xl font-bold ${cls.valor}`}>{formatMoney(total)}</p>
+      {total > 0 && (
+        <p className={`mt-1 text-xs ${cls.texto}`}>
+          +{pctExtra}% {detalle}
+        </p>
+      )}
+      {!!historico && (
+        <p className={`mt-1 text-xs ${cls.texto}`}>Ya cobrado antes: {formatMoney(historico)}</p>
+      )}
+    </div>
   );
 }
 

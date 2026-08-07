@@ -16,6 +16,23 @@ const SENA_DEFAULT = 10000;
 // Un primer pago mayor se toma como un anticipo, no como la seña.
 const SENA_TOPE = 25000;
 
+// Recargos de referencia para "cuánto pagaría si viene hoy" (Plan de cuotas / ficha del
+// alumno). Reglas de Paulina, ya confirmadas:
+//  - Pago atrasado (cualquier forma): +10% sobre lo pendiente.
+//  - Transferencia, débito o crédito EN 1 PAGO: +10% sobre lo pendiente (se encadena con el
+//    de atraso si la cuota ya está vencida: primero atraso, después este).
+//  - Tarjeta en 3 pagos: +25% en período ABRIL, +30% en período JULIO — el período se toma
+//    de HOY (cuándo se cobra), no de la fecha del pedido, porque es el recargo vigente al
+//    momento de cobrar.
+const RECARGO_ATRASO_PCT = 10;
+const RECARGO_NO_EFECTIVO_PCT = 10;
+const RECARGO_TARJETA_3_CUOTAS_ABRIL_PCT = 25;
+const RECARGO_TARJETA_3_CUOTAS_JULIO_PCT = 30;
+
+function periodoHoyEsJulio(): boolean {
+  return isoDate(new Date()) >= "2026-07-01";
+}
+
 // Colegios con arreglo / precio ESPECIAL (negociado aparte): NO usan la lista del flyer.
 // Para ellos la cuota se reparte parejo: (total − seña) / cuotas reales.
 // Agregá acá el nombre EXACTO del colegio (como figura en organizacion) para sumar excepciones.
@@ -257,6 +274,19 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
   const atrasado = cuotasAtrasadas > 0;
   const montoVencido = atrasado ? Math.min(saldo, round2(cuotasAtrasadas * montoCuota)) : 0;
 
+  // Proyecciones de "cuánto pagaría si viene HOY" sobre el saldo pendiente, para que la
+  // cajera sepa cuánto cobrar según cómo pague. Si no debe nada (saldo 0), las tres dan 0.
+  // El de atraso solo aplica si realmente hay una cuota vencida; los otros dos son por forma
+  // de pago y se encadenan con el de atraso cuando corresponde (mismo orden que en PagoForm:
+  // primero atraso, después el recargo de la forma de pago, sobre el resultado ya con atraso).
+  const conAtraso = atrasado ? saldo * (1 + RECARGO_ATRASO_PCT / 100) : saldo;
+  const totalConInteresAtraso = atrasado ? round2(conAtraso) : 0;
+  const totalPrecioDeLista = round2(conAtraso * (1 + RECARGO_NO_EFECTIVO_PCT / 100));
+  const pctTarjeta3 = periodoHoyEsJulio()
+    ? RECARGO_TARJETA_3_CUOTAS_JULIO_PCT
+    : RECARGO_TARJETA_3_CUOTAS_ABRIL_PCT;
+  const totalTarjeta3Cuotas = round2(conAtraso * (1 + pctTarjeta3 / 100));
+
   // Próxima cuota impaga = (cuotasPagadas + 1); su vencimiento. "" si ya está saldado.
   let proximoVencimiento = "";
   if (saldo > 0 && cuotasPendientes > 0 && base.fecha_orden) {
@@ -287,6 +317,9 @@ export function computeAlumno(base: AlumnoBase, pagos: Pago[]): AlumnoComputed {
     cuotasAtrasadas,
     atrasado,
     montoVencido,
+    totalConInteresAtraso,
+    totalPrecioDeLista,
+    totalTarjeta3Cuotas,
     proximoVencimiento,
     cuotasPlan,
   };
