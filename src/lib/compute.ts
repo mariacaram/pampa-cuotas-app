@@ -101,6 +101,14 @@ function prendaSueltaDe(base: AlumnoBase): string | null {
   return null;
 }
 
+// Un candidato de cuota, con si viene de un precio de colegio CONFIRMADO (PRECIOS_COLEGIO /
+// PRECIOS_PRENDA_SUELTA — negociado o verificado por foto real) o del flyer nacional genérico
+// (sin ninguna confirmación puntual para este colegio). La diferencia importa para inferir la
+// seña (ver detectarSena): un precio confirmado puede justificar una seña grande y real; el
+// flyer genérico solo, no — si sobra mucho contra el flyer, lo más probable es que sea un extra
+// suelto de ESE pedido (otro precio, un ítem de más), no evidencia de una seña real distinta.
+type CandidataCuota = { monto: number; confirmado: boolean };
+
 // Montos de cuota candidatos para el período/nº de cuotas, en orden de prioridad:
 //  1. Precio de colegio para el combo (PRECIOS_COLEGIO — solo existe cuando es MENOR al
 //     mínimo del flyer, un precio genuinamente distinto y negociado aparte).
@@ -110,7 +118,7 @@ function prendaSueltaDe(base: AlumnoBase): string | null {
 // Nunca se guarda un precio de colegio igual o mayor al flyer: eso sería "flyer + un extra
 // que compró la mayoría del grupo", y el extra SIEMPRE va entero en la última cuota, nunca
 // promediado entre todas (regla de Paulina).
-function cuotasCandidatas(base: AlumnoBase, nCuotas: number): number[] {
+function cuotasCandidatas(base: AlumnoBase, nCuotas: number): CandidataCuota[] {
   if (nCuotas < 1 || nCuotas > 3) return [];
   const esJulio = !!base.fecha_orden && base.fecha_orden >= "2026-07-01";
   const periodo = esJulio ? "J" : "A";
@@ -121,14 +129,17 @@ function cuotasCandidatas(base: AlumnoBase, nCuotas: number): number[] {
     const key = `${org}|||${combo}|||${periodo}|||${nCuotas}`;
     const local = PRECIOS_COLEGIO[key];
     const nacional = (esJulio ? FLYER_JULIO : FLYER_ABRIL)[combo][nCuotas as 1 | 2 | 3];
-    return [...new Set(local !== undefined ? [local, nacional] : [nacional])];
+    const candidatas: CandidataCuota[] = [];
+    if (local !== undefined) candidatas.push({ monto: local, confirmado: true });
+    if (local === undefined || local !== nacional) candidatas.push({ monto: nacional, confirmado: false });
+    return candidatas;
   }
 
   const prenda = prendaSueltaDe(base);
   if (prenda) {
     const pkey = `${org}|||${prenda}|||${periodo}|||${nCuotas}`;
     const precio = PRECIOS_PRENDA_SUELTA[pkey];
-    if (precio !== undefined) return [precio];
+    if (precio !== undefined) return [{ monto: precio, confirmado: true }];
   }
 
   return [];
@@ -139,6 +150,15 @@ function cuotasCandidatas(base: AlumnoBase, nCuotas: number): number[] {
 // La deducimos de lo REALMENTE pagado, para no adivinar dónde quedó el extra:
 //   seña = pagado − (cuotas reales ya pagadas × cuota del flyer)
 // Ej: pagó 96.000 en 3 cuotas de un Combo1 abril (cuota 38.000) → seña = 96.000 − 38.000×2 = 20.000.
+// OJO (2026-08-07): esta inferencia solo se acepta con una seña "grande" (> SENA_TOPE) cuando
+// el precio usado para descontar es un precio de colegio CONFIRMADO. Si es el flyer nacional
+// genérico (sin nada confirmado para ese colegio puntual), una seña grande inferida casi
+// siempre es en realidad un extra suelto de ESE pedido (ítem de más, precio distinto) — ahí NO
+// se infiere, se usa la seña estándar y el extra se absorbe en la última cuota (regla general).
+// Encontrado en Sofía Acosta Martínez (27 Esclavas "A", Combo1 sin precio propio): el sistema
+// inferían una seña de $31.500 (sin ninguna base real) en vez de la seña estándar $10.000 +
+// $116.500 en la última cuota — Paulina pidió que el plan de cuotas SIEMPRE corresponda a una
+// combinación reconocible (seña estándar + cuotas), no a un número inventado.
 function detectarSena(base: AlumnoBase): number {
   // Ventas cargadas desde la app (nro_orden "APP-…"): la seña la fijó el usuario,
   // así que la tomamos exacta (sin el tope, que es solo para datos importados).
@@ -151,10 +171,12 @@ function detectarSena(base: AlumnoBase): number {
     if (!esColegioEspecial(base)) {
       const nReales = (base.plan_cuotas > 0 ? base.plan_cuotas : 1) - 1;
       if (nReales >= 1) {
-        for (const fc of cuotasCandidatas(base, nReales)) {
+        for (const cand of cuotasCandidatas(base, nReales)) {
           const realesPagadas = Math.min(pagadas - 1, nReales);
-          const inferida = round2(pagado - fc * realesPagadas);
-          if (inferida > 0 && inferida <= base.total_asignado) return inferida;
+          const inferida = round2(pagado - cand.monto * realesPagadas);
+          if (inferida > 0 && inferida <= base.total_asignado) {
+            if (cand.confirmado || inferida <= SENA_TOPE) return inferida;
+          }
         }
       }
     }
@@ -215,8 +237,8 @@ function montoCuotaRegular(base: AlumnoBase): number {
   if (!esColegioEspecial(base)) {
     // Probamos cada candidato (precio de colegio primero, nacional después) y usamos el
     // primero que el total alcance a cubrir (extra >= 0); si ninguno encaja, parejo.
-    for (const fc of cuotasCandidatas(base, nReales)) {
-      if (total >= sena + fc * nReales) return fc;
+    for (const cand of cuotasCandidatas(base, nReales)) {
+      if (total >= sena + cand.monto * nReales) return cand.monto;
     }
   }
   return round2((total - sena) / nReales);
